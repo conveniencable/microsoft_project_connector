@@ -29,7 +29,4 @@ Under the plugin configuration options, you can set field mappings between Redmi
 ![MetroFramework](https://conveniencable.github.io/images/sub_tasks.jpg)
 
 
-## Microsoft Project Using
-
-
 
