@@ -1,0 +1,171 @@
+<%
+available_client_versions = MicrosoftProjectConnectorController.helpers.available_client_versions
+redmine_columns = MicrosoftProjectConnectorController.helpers.available_redmine_columns 
+%>
+
+<div>
+    <h3 style="float: left"><%=l(:columns_mapping)%></h3>
+
+    <div style="float: right;line-height: 1.5rem">
+        <span><%=l(:new_mapping)%> </span>
+        <%= select_tag 'available_columns',
+        options_for_select([['', '']] + redmine_columns.map{|c| [c[:label], c[:name]]}),
+        :id => 'select_redmine_columns'%>
+    </div>
+    <div style="float: right; clear: both"></div>
+</div>
+
+<table class="list">
+    <thead>
+        <tr>
+            <th><%=l(:redmine_column)%></th>
+            <th><%=l(:project_column)%></th>
+            <th>
+                
+            </th>
+        </tr>
+    </thead>
+    <tbody id="body_mapping">
+
+    </tbody>
+</table>
+
+<script>
+    var MSPFieldS = <%= MicrosoftProjectConnectorController.helpers.available_msp_fields.to_json.html_safe %>;
+    var RedmineColumns = <%= redmine_columns.to_json.html_safe %>;
+    var ColumnTitles = '<%= l(:task_column_titles) %>'.split('||');
+
+    $.each(<%=MicrosoftProjectConnectorController.helpers.msc_columns_mapping_settings.to_json.html_safe %>, function(i, o) {
+        var redmineColumn = RedmineColumns.find(function(rc) {
+            return rc.name == o.redmine;
+        });
+
+        if (redmineColumn) {
+            mspAddColumnMapping(redmineColumn.name, redmineColumn.msp_field);
+            disabledMspOption(redmineColumn.msp_field, true);
+        }
+    });
+
+    $('#select_redmine_columns').change(function(e) {
+        var val = e.currentTarget.value;
+        if (val) {
+            mspAddColumnMapping(val);
+        }
+    });
+
+    $('#body_mapping').delegate('.btn_remove_mapping', 'click', function(e) {
+        e.preventDefault();
+
+        if (confirm('<%=l(:text_are_you_sure)%>')) {
+            var $tr =  $(e.currentTarget).closest('tr');
+            $('#select_redmine_columns option[value=' + $tr.data('field') + ']').prop('disabled', false);
+
+            var mspField = $tr.find('.select_msp_field').val();
+            if (mspField) {
+                disabledMspOption(mspField, false);
+            }
+            $tr.remove();
+
+        }
+    }).delegate('.select_msp_field', 'change', function(e) {
+        var currentTarget = e.currentTarget;
+        var value = currentTarget.value;
+        if (value) {
+            disabledMspOption(value, true);
+        }
+        
+        var oldValue = $(currentTarget).data('ov');
+        if (oldValue) {
+            disabledMspOption(oldValue, false);
+        }
+
+        $(currentTarget).data('ov', value || '');
+    });
+
+    function mspAddColumnMapping(columnName, mspFieldName) {
+        var redmineColumn = RedmineColumns.find(function(rc) {
+            return rc.name == columnName;
+        });
+        var html = '<tr data-field="' + columnName + '">';
+        html += '<td>' + (redmineColumn && redmineColumn.label) + ' <input type="hidden"  name="settings[mpc_columns_mapping][][redmine]" value="' + columnName + '"/></td>';
+        html += '<td>';
+        if(['id', 'assigned_to'].indexOf(columnName) === -1 || !mspFieldName) {
+            html += '<select class="select_msp_field" data-ov="' + (mspFieldName || '') + '" name="settings[mpc_columns_mapping][][msp]">' + generateMspOptions(redmineColumn, mspFieldName) + '</select>';
+        } else {
+            var mspField = MSPFieldS.find(function(f) {
+                return f.name === mspFieldName;
+            });
+            html += ColumnTitles[mspField.title_index] + '<input type="hidden" name="settings[mpc_columns_mapping][][msp]" value="' + mspFieldName + '" />';
+        }
+        html += '</td>';
+        html += '<td>';
+        if(['id', 'assigned_to'].indexOf(columnName) === -1) {
+            html += '<a href="#" class="btn_remove_mapping icon-only icon-del"><%=l(:button_delete)%></a>';
+        }
+        html += '</td>';
+        html += '</tr>';
+        $('#body_mapping').append(html);
+
+        $('#select_redmine_columns option[value=' + columnName + ']').prop('disabled', true);
+    }
+
+    function generateMspOptions(redmineColumn, selectedMspFieldName) {
+        var acceptFormats;
+
+        var format = redmineColumn.field_format || 'string';
+        switch(format) {
+            case 'string':
+            case 'text':
+            case 'link':
+                acceptFormats = ['string'];
+                break;
+            case 'int':
+                acceptFormats = ['short', 'int', 'double'];
+                break;
+            case 'float':
+                acceptFormats = ['int', 'double'];
+                break;
+            case 'date':
+                acceptFormats = ['DateTime'];
+                break;
+            case 'bool':
+                acceptFormats = ['bool'];
+                break;
+        }
+
+        if (!acceptFormats) {
+            return '';
+        }
+
+        var usedMspFields = $('#body_mapping .select_msp_field').toArray().map(function(s) {
+            return s.value;
+        }).filter(function(f) {
+            return !!f;
+        });
+
+        return [{name: '', title_index: -1}].concat(MSPFieldS.filter(function(f) {
+            return acceptFormats.indexOf(f.type) !== -1;
+        })).map(function(f) {
+            return '<option value="' + f.name + '" ' + (selectedMspFieldName && selectedMspFieldName === f.name ? 'selected' : '') + ' ' + (usedMspFields.indexOf(f.name) === -1 ? '' : 'disabled') + '>' + (ColumnTitles[f.title_index] || '') + (f.readonly ? ' (<%=l(:label_readonly)%>)' : '') + '</option>';
+        }).join('');
+    }
+
+    function disabledMspOption(fieldName, disabled) {
+        $('#body_mapping .select_msp_field').each(function(i, o) {
+            if (o.value !== fieldName) {
+                for(var i = 1; i < o.options.length; i++) {
+                    if (o.options[i].value == fieldName) {
+                        o.options[i].disabled = disabled;
+                    }
+                }
+            }
+        });
+    }
+
+    $(function() {
+        $('#settings [name=commit]').parent().append('&nbsp;&nbsp;<a href="http://conveniencable.com/download/msprc/<%=available_client_versions[available_client_versions.length - 1]%>"><%=l(:button_download_msp_plugin)%></a>')
+    });
+
+</script>
+
+<% html_title(l(:label_settings), l(:labe_corp_wechats)) -%>

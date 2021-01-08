@@ -1,0 +1,4 @@
+class MicrosoftProjectConnectorQuery < IssueQuery
+
+
+end

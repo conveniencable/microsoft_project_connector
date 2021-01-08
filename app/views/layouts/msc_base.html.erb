@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="<%= current_language %>">
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    
+    <title><%= html_title %></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="description" content="<%= Redmine::Info.app_name %>" />
+    <meta name="keywords" content="issue,bug,tracker" />
+    <%= csrf_meta_tag %>
+    <%= favicon %>
+    <%= stylesheet_link_tag 'jquery/jquery-ui-1.11.0', 'application', :media => 'all' %>
+
+    <%= stylesheet_link_tag 'rtl', :media => 'all' if l(:direction) == 'rtl' %>
+
+    <%= javascript_include_tag 'ie-fixed', :plugin => 'microsoft_project_connector' %>
+    <%= javascript_heads %>
+</head>
+
+<body style="padding: 5px; min-width: auto">
+    <%= yield %>
+</body>
+
+</html>

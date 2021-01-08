@@ -1,0 +1,445 @@
+<% if @client_not_match %>
+<div id="errorExplanation">
+    <%=l(:message_client_version_not_match, :client_version => params[:client_version])%>
+</div>
+<a href="#" onclick="window.external.openUrl('http://conveniencable.com/download/msprc/<%=@client_not_match%>'); return false"><%=l(:button_download_msp_plugin)%></a>
+
+<% elsif @error %>
+<div id="errorExplanation">
+    <ul>
+        <li><%=@error%></li>
+    </ul>
+</div>
+
+<button onclick="window.location.reload()"><%=l(:button_fixed_and_refresh)%></button>
+<% else %>
+<div class="project_jump_box_wrap">
+    <%= render_project_jump_box %>
+
+    <% if false && @project %>
+    <%
+            queries = sidebar_queries(MicrosoftProjectConnectorQuery, @project)
+        %>
+    <div style="padding: 3px 0; border-bottom: 1px dashed #ccc">
+        <label><%=l(:label_query)%></label>
+        <select>
+            <% queries.each do |query| %>
+            <option value="<%=query.id%>" <%=query.id == params[:query_id] ? 'selected' : ''%>><%=query.name == 'default' ? l(:label_default) : query.name%></option>
+            <% end %>
+        </select>
+
+        <button id="btn_save_query">test</button>
+    </div>
+    <% end %>
+</div>
+<% if @project %>
+
+<%= javascript_tag do %>
+var operatorLabels = <%= raw_json Query.operators_labels %>;
+var operatorByType = <%= raw_json Query.operators_by_filter_type %>;
+var availableFilters = <%= raw_json @query.available_filters_as_json %>;
+var labelDayPlural = <%= raw_json l(:label_day_plural) %>;
+
+var filtersUrl = <%= raw_json queries_filter_path(:project_id => @query.project.try(:id), :type => 'IssueQuery') %>;
+
+$(document).ready(function(){
+initFilters();
+<% @query.filters.each do |field, options| %>
+addFilter("<%= field %>", <%= raw_json @query.operator_for(field) %>, <%= raw_json @query.values_for(field) %>);
+<% end %>
+});
+<% end %>
+
+<div class="filter-div">
+    <div class="add-filter">
+        <%= label_tag('add_filter_select', l(:label_filter_add)) %>
+        <%= select_tag 'add_filter_select', filters_options_for_select(@query), :name => nil %>
+    </div>
+
+    <table id="filters-table" style="float: none">
+    </table>
+
+    <div id="query_form_content">
+        <form>
+            <table>
+                <tr>
+                    <th class="field"><%= l(:field_column_names) %></th>
+                </tr>
+                <tr>
+                    <td><%= render_query_columns_selection_for_msp(@query) %></td>
+                </tr>
+            </table>
+        </form>
+    </div>
+
+    <div class="filter-actions">
+        <button id="btn_load" class="msp_btn"><%=l(:button_load_to_project)%><img src="<%= request.base_url %>/images/loading.gif" /></button>
+        &nbsp;&nbsp;
+        <button id="btn_save" class="msp_btn"><%=l(:button_save_to_redmine)%><img src="<%= request.base_url %>/images/loading.gif" /></button>
+    </div>
+    <% include_calendar_headers_tags %>
+</div>
+
+<div id="modal-message" style="display: none"></div>
+
+<script>
+    function loadSetting() {
+        var f = [];
+        var op = {};
+        var v = {};
+        $('#filters-table tr.filter').each(function(i, o) {
+            var $o = $(o);
+            var $f = $o.find('td.field input[name="f[]"]:checked');
+            if ($f[0]) {
+                var fieldName = $f.val();
+                var $op = $o.find('td.operator select');
+                var $v = $o.find('td.values [name="v[' + fieldName + '][]"]:not(:disabled)');
+
+                f.push(fieldName);
+                op[fieldName] = $op.val();
+
+                var values = $v.toArray().map(function(ip) {
+                    return $(ip).val()
+                });
+
+                if (values.length > 0) {
+                    v[fieldName] = values;
+                }
+            }
+        });
+
+        var columns = $('#selected_c option').toArray().map(function(c) {
+            return c.value
+        });
+
+        return $.ajax({
+            url: '<%=microsoft_project_connector_settings_path%>',
+            method: 'get',
+            data: {
+                project_id: '<%= @project.id %>',
+                set_filter: 1,
+                f: f,
+                op: op,
+                v: v,
+                c: columns,
+                limit: 100
+            },
+            dataType: 'text'
+        }).then(function(json) {
+            var loadSettingResult = window.external.loadSettings(json, window.location.protocol + '//' + window.location.host + '/');
+            if (loadSettingResult) {
+
+                if (loadSettingResult != 'not_actived') {
+                    showError(loadSettingResult);
+                }
+                return false;
+            }
+
+            return true;
+        });
+    }
+
+    function loaddSettingForSave() {
+        return $.ajax({
+            url: '<%=microsoft_project_connector_settings_path%>',
+            method: 'get',
+            data: {
+                project_id: '<%= @project.id %>',
+                is_for_save: 1
+            },
+            dataType: 'text'
+        }).then(function(json) {
+            var loadSettingResult = window.external.loadSettingsForSave(json, window.location.protocol + '//' + window.location.host + '/');
+            if (loadSettingResult) {
+
+                if (loadSettingResult != 'not_actived') {
+                    showError(loadSettingResult);
+                }
+                return false;
+            }
+
+            return true;
+        });
+    }
+
+    $('#btn_load').click(function(e) {
+        if (window.external.hasUnsaved()) {
+            if (!confirm('<%=l(:message_overwrite_tasks)%>')) {
+                return;
+            }
+        }
+
+        var $btn = $(e.currentTarget);
+        if ($btn.hasClass('loading')) {
+            return;
+        } else {
+            $btn.addClass('loading');
+        }
+
+        loadSetting().then(function(success) {
+            if (success) {
+                $.ajax({
+                    url: '<%=microsoft_project_connector_query_path%>',
+                    method: 'post',
+                    data: {
+                        project_id: '<%= @project.id %>',
+                        limit: 100
+                    },
+                    dataType: 'text'
+                }).then(function(json) {
+                    var loadIssueResult = window.external.loadIssues(json);
+                    if (loadIssueResult) {
+                        showError(loadIssueResult);
+
+                        return;
+                    }
+                });
+
+                window.finishLoadIssue = function() {
+                    $('#btn_load').removeClass('loading');
+                };
+
+                window.loadIssueAgain = function(offset, limit) {
+                    $.ajax({
+                        url: '<%=microsoft_project_connector_query_path%>',
+                        method: 'post',
+                        data: {
+                            project_id: '<%= @project.id %>',
+                            limit: limit,
+                            offset: (limit + 1) * offset
+                        },
+                        dataType: 'text'
+                    }).then(function(json) {
+                        var loadIssueResult = window.external.loadIssues(json);
+                        if (loadIssueResult) {
+                            $('#btn_load').removeClass('loading');
+
+                            showError(loadIssueResult);
+
+                            return;
+                        }
+                    });
+                }
+            }
+        }).fail(function(err) {
+            showError('load redmine data error');
+        }).always(function() {
+            $btn.removeClass('loading');
+        });
+    });
+
+    function loadSettingAndSave() {
+        return loaddSettingForSave().then(function(success) {
+            if (success) {
+                return saveTaskToIssues();
+            }
+        });
+    }
+
+    function saveTaskToIssues() {
+        var issuesJsonStr = window.external.getRedmineIssues();
+        if (!issuesJsonStr) {
+            $('#btn_save').removeClass('loading');
+            return;
+        }
+
+        if (issuesJsonStr.indexOf('error:') === 0) {
+            showError(issuesJsonStr.substr(6));
+            $('#btn_save').removeClass('loading');
+
+            return;
+        }
+
+        return $.ajax({
+            url: '<%=microsoft_project_connector_save_path%>',
+            method: 'post',
+            data: {
+                data: issuesJsonStr
+            },
+            dataType: 'text'
+        }).then(function(json) {
+            var result = window.external.updateNewTasks(json);
+            if (result) {
+                showError(result);
+            }
+        }).always(function() {
+            $('#btn_save').removeClass('loading');
+        });
+    }
+
+    $('#btn_save').click(function(e) {
+        var $btn = $(e.currentTarget);
+        if ($btn.hasClass('loading')) {
+            return;
+        } else {
+            $btn.addClass('loading');
+        }
+
+        var saveResult = loadSettingAndSave();
+        if (saveResult) {
+            saveResult.always(function() {
+                $btn.removeClass('loading');
+            });
+        }
+    });
+
+
+    function showSaveMessage(errorsStr) {
+        if (errorsStr) {
+            var errors = JSON.parse(errorsStr)
+            if (errors && errors.length > 0) {
+                var html = '<table class="error-table"><thead><tr><th class="td_line_no"><%=l(:title_line_no)%></th><th><%=l(:title_error)%></th></tr></thead>';
+                html += '<tbody>';
+                html += errors.map(function(error) {
+                    return '<tr><td class="td_line_no">' + error[0] + '</td><td>' + error[1] + '</td></tr>';
+                }).join('');
+                html += '</tbody>';
+                $('#modal-message').html(html);
+
+                showModal('modal-message', '100%', '<%=l(:follow_tasks_save_fail)%>');
+
+                return;
+            }
+        }
+
+        showSuccess('<%=l(:save_success)%>');
+    }
+
+    $('#btn_test').click(function(e) {
+        showSaveMessage([
+            [null, "跟踪 不能为空字符; 状态 不能为空字符; 开始日期 不是合法日期; 计划完成日期 不是合法日期"],
+            [null, "跟踪 不能为空字符; 状态 不能为空字符; 开始日期 不是合法日期; 计划完成日期 不是合法日期"],
+            [null, "跟踪 不能为空字符; 状态 不能为空字符; 开始日期 不是合法日期; 计划完成日期 不是合法日期"],
+            [null, "跟踪 不能为空字符; 状态 不能为空字符; 开始日期 不是合法日期; 计划完成日期 不是合法日期"],
+            [null, "跟踪 不能为空字符; 状态 不能为空字符; 开始日期 不是合法日期; 计划完成日期 不是合法日期"],
+            [null, "跟踪 不能为空字符; 状态 不能为空字符; 开始日期 不是合法日期; 计划完成日期 不是合法日期"],
+            [null, "跟踪 不能为空字符; 状态 不能为空字符; 开始日期 不是合法日期; 计划完成日期 不是合法日期"],
+            [null, "跟踪 不能为空字符; 状态 不能为空字符; 开始日期 不是合法日期; 计划完成日期 不是合法日期"],
+            [null, "跟踪 不能为空字符; 状态 不能为空字符; 开始日期 不是合法日期; 计划完成日期 不是合法日期"],
+            [null, "跟踪 不能为空字符; 状态 不能为空字符; 开始日期 不是合法日期; 计划完成日期 不是合法日期"],
+            [null, "跟踪 不能为空字符; 状态 不能为空字符; 开始日期 不是合法日期; 计划完成日期 不是合法日期"]
+        ])
+    });
+
+    function showError(msg) {
+        $('#modal-message').html(msg);
+        showModal('modal-message', '200px', '<%=l(:title_error)%>');
+    }
+
+    function showSuccess(msg) {
+        $('#modal-message').html(msg);
+        showModal('modal-message', '200px', '<%=l(:title_success)%>');
+    }
+
+    function deleteIssue(id) {
+        return $.ajax({
+            url: '<%=microsoft_project_connector_delete_issue_path%>',
+            method: 'delete',
+            data: {
+                id: id
+            },
+            dataType: 'json'
+        }).then(function(json) {
+            json.error && window.external.showDeleteMessage(json.error);
+        });
+    }
+</script>
+
+<style>
+    .filter td.field {
+        white-space: nowrap;
+    }
+
+
+    .filter td.values {
+        white-space: nowrap;
+    }
+
+    .filter td.values select {
+        width: 90%;
+    }
+</style>
+<% end %>
+
+
+<script>
+    $(document).ready(function() {
+        $('#project-jump').delegate('.drdn-items.projects > a', 'click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var $a = $(e.currentTarget);
+            var id = $a.attr('href').match(/projects\/([^?]+)/)[1]
+            window.location = window.location.toString().split('&project_id=')[0] + '&project_id=' + id;
+        }).find('.drdn-trigger').html('<%=@project ? @project.name : l(:text_select_a_project)%>');
+
+        window.external.onLoad && window.external.onLoad();
+
+
+    });
+</script>
+
+<style>
+    #project-jump {
+        text-align: left;
+    }
+
+    #project-jump.drdn {
+        width: 100% !important;
+        display: inline-block;
+    }
+
+    .project_jump_box_wrap {
+        padding-left: 0;
+    }
+
+    #project-jump .drdn-trigger {
+        color: #333;
+        font-size: 1.2rem;
+        height: 2rem;
+    }
+
+    #project-jump .drdn-content {
+        left: 0;
+        right: auto;
+    }
+
+
+    table.error-table .td_line_no {
+        width: 2rem;
+        white-space: nowrap;
+    }
+
+    .msp_btn img {
+        display: none;
+    }
+
+    .msp_btn.loading img {
+        display: inline-block;
+    }
+
+    .add-filter {
+        width: 100%;
+        padding-left: 0.5rem;
+        float: none;
+        text-align: left;
+    }
+
+    .filter-div {
+        margin-top: 0.5rem;
+        padding: 0.5rem 0;
+        border: 1px solid #ccc;
+    }
+
+    #query_form_content {
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid #ccc
+    }
+
+    .filter-actions {
+        margin-top: 0.5rem;
+        border-top: 1px solid #ccc;
+        padding: 1rem 0.5rem 0.5rem 0.5rem;
+    }
+</style>
+<% end %>
