@@ -34,8 +34,20 @@ zh:
   label_r_start_start: '<-开始-开始(SS)'
   label_r_start_finish: '<-开始-完成(SF)'
 
+  message_exception: '执行过程中发生了错误'
   message_client_version_not_match: '这个Microsoft Project插件V%{client_version}和您所链接的Redmine系统不兼容, 请下载一个兼容的并自行安装。'
   message_overwrite_tasks: '有些任务未保存到Redmine，你想覆盖它们吗？'
   button_download_msp_plugin: '下载Microsoft Project插件'
 
   text_select_a_project: 选择一个项目...
+
+
+  on_task_delete_none: '什么都不做'
+  on_task_delete_ask: '询问'
+  on_task_delete_delete: '删除问题(登记的工时也会被删除)'
+
+  on_task_delete: '当Miscrosoft Project的任务被删除时'
+  message_delete_issues: '你确定要删除问题##{id}吗？(登记的工时也会被删除)?'
+  confirm_delete: '确定删除!!'
+
+  message_please_cancel_cursor: '请取消文档中的光标'

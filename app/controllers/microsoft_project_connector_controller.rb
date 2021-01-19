@@ -71,7 +71,7 @@ class MicrosoftProjectConnectorController < ApplicationController
     if params[:is_for_save]
       render :json => {
         :columns => available_redmine_columns.select{|c| c.present? },
-        :members => @project.members.map{|m| {:id => m.user_id, :name => m.name}}
+        :members => @project.members.map{|m| {:id => m.user_id, :name => m.name}},
       }
 
       return
@@ -95,7 +95,6 @@ class MicrosoftProjectConnectorController < ApplicationController
     end
 
     query.save
-
 
     columns = available_redmine_columns.select{|column| column[:name] == 'id' || params[:c].include?(column[:name])}
 
@@ -157,14 +156,20 @@ class MicrosoftProjectConnectorController < ApplicationController
     if issues_hash.present? && !issues_hash.blank?
       members = @project.members
 
-
       guid_to_id = Hash.new
       depencencies = []
+      exclude_removing_dependencies = []
 
       issues_hash.each do |issue_hash|
         issue_data = { :project_id => @project.id }
 
         custom_fields = []
+
+        id = issue_hash['id'].to_i
+        guid = issue_hash['guid']
+
+        exclude_removing_dependency = {:to_id => id, :to_guid => guid, :from_ids => [], :from_guids => []}
+        exclude_removing_dependencies.append exclude_removing_dependency
 
         issue_hash.each do |field_arr|
           if "relations" == field_arr[0]
@@ -174,9 +179,17 @@ class MicrosoftProjectConnectorController < ApplicationController
               index2 = dependency_str.index '#'
               type = dependency_str[0...index1]
               lag = dependency_str[index1+1...index2]
-              from_uuid = dependency_str[index2+1..-1]
+              from_guid = dependency_str[index2+1..-1]
+              index2 = from_guid.index '#'
+              from_id = from_guid[index2+1..-1].to_i
+              from_guid = from_guid[0...index2]
 
-              depencencies << [type, lag, from_uuid, issue_hash['guid'], issue_hash['line_no']]
+              if from_id > 0
+                exclude_removing_dependency[:from_ids].append from_id
+              else
+                exclude_removing_dependency[:from_guids].append from_guid
+              end
+              depencencies << {:type => type, :lag => lag, :from_id => from_id, :from_guid => from_guid, :to_id => id, :to_guid => guid, :line_no => issue_hash['line_no']}
             end            
           else
             field_name = field_arr[0]
@@ -192,22 +205,28 @@ class MicrosoftProjectConnectorController < ApplicationController
 
         issue_data[:custom_fields] = custom_fields
 
-        if issue_data[:id] && issue_data[:id].to_i != 0
-
-          issue_obj = Issue.find(issue_data[:id].to_i)
+        if id > 0
+          issue_obj = Issue.where(:id => id).first
           unless issue_obj
-            errors << [issue_data[:line_no], l(:issue_not_exists, :id => issue_data[:id])]	
+            errors << [issue_data[:line_no], l(:issue_not_exists, :id => id)]	
           else
             issue_obj.init_journal(User.current)
             issue_obj.safe_attributes = issue_data
-            issue_obj.parent_id = issue_hash['parent_guid'] && guid_to_id[issue_hash['parent_guid']] ? guid_to_id[issue_hash['parent_guid']] : nil
+            if issue_hash['parent_id']
+              issue_obj.parent_id = issue_hash['parent_id']
+            else
+              issue_obj.parent_id = issue_hash['parent_guid'] && guid_to_id[issue_hash['parent_guid']] ? guid_to_id[issue_hash['parent_guid']] : nil
+            end
 
-            unless issue_obj.save
+            if issue_obj.save
+              new_issues_data.append :updated_on => format_time(issue_obj.updated_on), :last_updated_by => issue_obj.last_updated_by && issue_obj.last_updated_by.name, :guid => issue_data[:guid]
+            else
               errors << [issue_data[:line_no], issue_obj.errors.full_messages.join('; ')]
             end
+            
+            guid_to_id[issue_data[:guid]] = issue_obj.id
           end
 
-          guid_to_id[issue_data[:guid]] = issue_obj.id
         else
           issue_obj = Issue.new
           issue_obj.author = User.current
@@ -215,7 +234,7 @@ class MicrosoftProjectConnectorController < ApplicationController
           issue_obj.parent_id = guid_to_id[issue_data[:parent_guid]]
           if issue_obj.save
             issue_obj[:id] = issue_obj.id
-            new_issues_data.append :id => issue_obj.id, :updated_on => format_time(issue_obj.updated_on), :guid => issue_data[:guid]
+            new_issues_data.append :id => issue_obj.id, :created_on => format_time(issue_obj.created_on), :updated_on => format_time(issue_obj.updated_on), :author => issue_obj.author.name, :last_updated_by => issue_obj.author.name, :guid => issue_data[:guid]
             guid_to_id[issue_data[:guid]] = issue_obj.id 
           else
             errors << [issue_data[:line_no], issue_obj.errors.full_messages.join('; ')]
@@ -223,14 +242,42 @@ class MicrosoftProjectConnectorController < ApplicationController
         end
       end
 
-      depencencies.each do |dependency|
-        from_id = guid_to_id[dependency[2]]
-        to_id = guid_to_id[dependency[3]]
+      exclude_removing_dependencies.each do |removing_dependency|
+        to_id = removing_dependency[:to_id]
+        unless to_id > 0
+          to_id = guid_to_id[removing_dependency[:to_guid]]
+        end
 
-        if from_id && to_id
-          result = save_relation(from_id, to_id, dependency[0], (dependency[1].to_i / 480.0).round)
+        if to_id && to_id > 0
+          from_ids = removing_dependency[:from_ids]
+          removing_dependency[:from_guids].each do |guid|
+            guid_id = guid_to_id[guid]
+            if guid_id && guid_id > 0
+              from_ids.append guid_id
+            end
+          end
+
+          remove_relations(to_id, from_ids)
+        end
+      end
+
+      depencencies.each do |dependency|
+        if dependency[:from_id] > 0
+          from_id = dependency[:from_id]
+        else
+          from_id = guid_to_id[dependency[:from_guid]]
+        end
+
+        if dependency[:to_id] > 0
+          to_id = dependency[:to_id]
+        else
+          to_id = guid_to_id[dependency[:to_guid]]
+        end
+
+        if from_id && from_id > 0 && to_id && to_id > 0
+          result = save_relation(from_id, to_id, dependency[:type], (dependency[:lag].to_i / 480.0).round)
           if result && result.errors && !result.errors.full_messages.empty?
-            line_no = dependency[4]
+            line_no = dependency[:line_no]
 
             error = errors.find{|e| e[0] == line_no}
 
@@ -272,7 +319,7 @@ class MicrosoftProjectConnectorController < ApplicationController
   end
 
   def find_optional_project
-    @project = Project.find(params[:project_id]) unless params[:project_id].blank?
+    @project = Project.where('id = ? or identifier=?', params[:project_id], params[:project_id]).first unless params[:project_id].blank?
     @project = Project.find(session['mspc_project_id']) unless @project || session['mspc_project_id'].blank?
     #allowed = User.current.allowed_to?({:controller => params[:controller], :action => params[:action]}, @project, :global => true)
     #allowed ? true : deny_access

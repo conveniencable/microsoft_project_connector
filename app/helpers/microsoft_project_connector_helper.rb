@@ -273,6 +273,10 @@ module MicrosoftProjectConnectorHelper
        ["1.0"]
     end
 
+    def must_load_columns
+      [:subject, :start_date, :due_date, :assigned_to]
+    end
+
     def render_query_columns_selection_for_msp(query, options={})
         tag_name = (options[:name] || 'c') + '[]'
         render :partial => 'queries/columns_msp', :locals => {:query => query, :tag_name => tag_name}
@@ -315,17 +319,18 @@ module MicrosoftProjectConnectorHelper
       @mapping_column_names_mapping
     end
 
-    def query_available_inline_columns_options_msp(query)
-        msc_columns_mapping = {}
-        msc_columns_mapping_settings.each do |mapping|
+    def available_mapped_columns(query)
+      must_load_columns_val = must_load_columns
 
-        end
+      selected_names = (query.inline_columns & query.available_inline_columns).collect{|column| column.name}
+      selected_names = selected_names.concat(must_load_columns_val)
 
-        (query.available_inline_columns - query.columns).reject(&:frozen?).select{|column| ![:project, :parent, :attachments].include?(column.name) && mapping_column_names_mapping[column.name]}.collect {|column| ["#{column.caption} (#{mapping_column_names_mapping[column.name]})", column.name]}
-    end
+      result = query.available_inline_columns.reject(&:frozen?).select{|column| ![:project, :parent, :attachments].include?(column.name) && mapping_column_names_mapping[column.name]}.collect {|column| ["#{column.caption} -> #{mapping_column_names_mapping[column.name]}", column.name, selected_names.include?(column.name), must_load_columns_val.include?(column.name)]}
 
-    def query_selected_inline_columns_options_msp(query)
-        (query.inline_columns & query.available_inline_columns).reject(&:frozen?).select{|column| mapping_column_names_mapping[column.name]}.collect {|column| ["#{column.caption} (#{mapping_column_names_mapping[column.name]})", column.name]}
+      selected = result.select{|c| c[2]}
+      others = result.select{|c| !c[2]}
+      
+      selected.concat(others)
     end
 
     def available_msp_fields()
@@ -337,6 +342,9 @@ module MicrosoftProjectConnectorHelper
         columns = query.available_inline_columns.reject(&:frozen?).select{|column| ![:project, :parent, :attachments].include? column.name}.collect {|column| [column.caption, column.name, column]}
 
         custom_fields = CustomField.all().to_ary()
+
+        default_tracker = nil
+        all_statuses = IssueStatus.all().to_ary
         
         columns = columns.map do |c|
             name = c[1].to_s
@@ -345,7 +353,8 @@ module MicrosoftProjectConnectorHelper
               cfId = name[3..-1].to_i
               cf = custom_fields.find{|cf| cf.id == cfId}
               unless cf.nil?
-                result = {:id => cf.id, :name => "cf_#{cf.id}", :label => cf.name, :field_format => cf.field_format}
+                result = {:id => cf.id, :name => "cf_#{cf.id}", :label => cf.name, :field_format => cf.field_format, :default_value => cf.default_value
+                }
                 if cf.field_format == 'enumeration' 
                   result[:possible_values] = cf.enumerations.map{|v| v.name}
                   result[:field_format] = 'string'
@@ -363,24 +372,61 @@ module MicrosoftProjectConnectorHelper
               result
             else
               possible_values = nil
-              
+              default_value = nil
+
               case name 
-              when 'assigned_to'
-                possible_values = @project.members.map{|u| u.name} if @project
+                when 'assigned_to'
+                  if @project
+                    project_members = @project.members;
+                    possible_values = project_members.map{|u| u.name} if @project
+                    if @project.respond_to? 'default_assigned_to_id'
+                      default_assigned_to_id = @project.default_assigned_to_id
+                      if default_assigned_to_id
+                        default_assigned_to = project_members.find{|u| u.user_id == default_assigned_to_id}
+
+                        default_value = default_assigned_to.name if default_assigned_to
+                      end
+                    end
+                  end
               when 'tracker'
-                possible_values = Issue.allowed_target_trackers(@project).map{|t| t.name}
-              when 'fixed_version'
-                possible_values = @project.shared_versions.map{|v| v.name} if @project
-              when 'status'
-                possible_values = IssueStatus.all().map{|v| v.name}
-              when 'priority'
-                possible_values = IssuePriority.active.map{|v|v.name}
-              when 'category'
-                possible_values = @project.issue_categories.map{|v| v.name} if @project
-              else
+                  if @project
+                    all_trackers = Issue.allowed_target_trackers(@project)
+                    possible_values = all_trackers.map{|t| t.name}
+                    if all_trackers.length > 0
+                      default_tracker = all_trackers[0]
+                      default_value = default_tracker.name
+                    end
+                  end
+                when 'fixed_version'
+                  if @project
+                    shared_versions = @project.shared_versions
+                    possible_values = shared_versions.map{|v| v.name} if @project
+                    if @project.respond_to? 'default_version_id'
+                      default_version_id = @project.default_version_id
+                      if default_version_id && shared_versions && shared_versions.length > 0
+                        default_version = shared_versions.find{|v| v.id == default_version_id}
+
+                        default_value = default_version.name if default_version
+                      end
+                    end
+                  end
+                when 'status'
+                  possible_values = all_statuses.map{|v| v.name}
+                when 'priority'
+                  active_priorities = IssuePriority.active
+                  possible_values = active_priorities.map{|v|v.name}
+                  if active_priorities.length > 0
+                    active_priority = active_priorities.find{|p| p.is_default}
+                    default_value = active_priority.name if active_priority
+                  end
+                when 'category'
+                  if @project
+                    possible_values = @project.issue_categories.map{|v| v.name} if @project
+                  end
+                else
               end
       
-              {:id => nil, :name => name, :label=> label, :possible_values => possible_values, :field_format => possible_values ? 'string' : @@field_formats[name.to_sym], :read_only => @@readonly_fields.include?(c)}
+              {:id => nil, :name => name, :label=> label, :possible_values => possible_values, :field_format => possible_values ? 'string' : @@field_formats[name.to_sym], :read_only => @@readonly_fields.include?(c), :default_value => default_value}
             end
         end
 
@@ -393,6 +439,14 @@ module MicrosoftProjectConnectorHelper
         columns.each do |column|
             msp_mapping = columns_mapping.find{|m| m['redmine'] == column[:name]}
             column[:msp_field] = msp_mapping['msp'] if msp_mapping
+
+            if column[:name] == 'status' && default_tracker
+              default_status_id = default_tracker.default_status_id
+              if default_status_id
+                default_status = all_statuses.find{|s| s.id == default_status_id}
+                column[:default_value] = default_status.name if default_status
+              end
+            end
         end
 
         columns
@@ -413,7 +467,7 @@ module MicrosoftProjectConnectorHelper
         status = (@_all_issue_status ||= IssueStatus.all()).find{|v| v.name == value}
         issue_data[:status_id] = status ? status.id : nil
       when 'priority'
-        priority = (@_active_priorityies ||= IssuePriority.active).find{|v|v.name == value}
+        priority = (@_active_priorities ||= IssuePriority.active).find{|v|v.name == value}
         issue_data[:priority_id] = priority ? priority.id : nil
       when 'category'
         category = (@_project_categories ||= @project.issue_categories).find{|v| v.name == value}
@@ -486,6 +540,13 @@ module MicrosoftProjectConnectorHelper
       end
 
       relation
+    end
+
+    def remove_relations(to_id, exclude_from_ids)
+      if exclude_from_ids.empty?
+        exclude_from_ids.append(0)
+      end
+      IssueRelation.where("issue_to_id = ? and issue_from_id not in (?) and relation_type in (?)", to_id, exclude_from_ids, [IssueRelation::TYPE_FINISH_FINISH, IssueRelation::TYPE_FINISH_START, IssueRelation::TYPE_START_START, IssueRelation::TYPE_START_FINISH]).delete_all
     end
 
 end

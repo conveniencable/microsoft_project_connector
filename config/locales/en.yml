@@ -36,9 +36,19 @@ en:
   label_r_start_start: '<-Start-Start(SS)'
   label_r_start_finish: '<-Start-Finish(SF)'
 
+  message_exception: 'An Error Occurs'
   message_client_version_not_match: 'This Microsoft Project Plugin V%{client_version} is incompatible with the redmine server you are connecting. Please download a compatible one and install it'
   message_overwrite_tasks: 'Some tasks are not saved to Redmine, Do you want to overwrite then?'
 
   button_download_msp_plugin: 'Download Microsoft Project Plugin'
 
   text_select_a_project: Select a project...
+
+  on_task_delete: 'When The Tasks on Miscrosoft Project Is Deleted'
+  on_task_delete_none: 'do nothing'
+  on_task_delete_ask: 'ask me'
+  on_task_delete_delete: 'delete issue(Timelog will also be deleted)'
+  message_delete_issues: 'Do you want to delete Issue##{id} in Redmine(Timelog will also be deleted)?'
+  confirm_delete: 'Confirm Delete!!'
+
+  message_please_cancel_cursor: 'Please cancel the cursor in the document'

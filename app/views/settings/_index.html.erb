@@ -1,6 +1,12 @@
 <%
 available_client_versions = MicrosoftProjectConnectorController.helpers.available_client_versions
 redmine_columns = MicrosoftProjectConnectorController.helpers.available_redmine_columns 
+
+on_task_delete_options = [
+    [l(:on_task_delete_none), ''],
+    [l(:on_task_delete_ask), 'askme'],
+    [l(:on_task_delete_delete), 'delete']
+]
 %>
 
 <div>
@@ -30,6 +36,15 @@ redmine_columns = MicrosoftProjectConnectorController.helpers.available_redmine_
     </tbody>
 </table>
 
+<div>
+    <br/>
+    <h3 style="float: left"><%=l(:on_task_delete)%>:</h3>
+    <div style="float: left;line-height: 1.5rem">
+         <%= select_tag 'settings[on_task_delete]', options_for_select(on_task_delete_options, Setting["plugin_microsoft_project_connector"]['on_task_delete']) %>
+    </div>
+    <div style="clear: both"></div>
+</div>
+
 <script>
     var MSPFieldS = <%= MicrosoftProjectConnectorController.helpers.available_msp_fields.to_json.html_safe %>;
     var RedmineColumns = <%= redmine_columns.to_json.html_safe %>;
@@ -58,7 +73,7 @@ redmine_columns = MicrosoftProjectConnectorController.helpers.available_redmine_
 
         if (confirm('<%=l(:text_are_you_sure)%>')) {
             var $tr =  $(e.currentTarget).closest('tr');
-            $('#select_redmine_columns option[value=' + $tr.data('field') + ']').prop('disabled', false);
+            $('#select_redmine_columns option[value="' + $tr.data('field') + '"]').prop('disabled', false);
 
             var mspField = $tr.find('.select_msp_field').val();
             if (mspField) {
@@ -99,8 +114,9 @@ redmine_columns = MicrosoftProjectConnectorController.helpers.available_redmine_
         }
         html += '</td>';
         html += '<td>';
+        html += '<span class="sort-handle"></span>';
         if(['id', 'assigned_to'].indexOf(columnName) === -1) {
-            html += '<a href="#" class="btn_remove_mapping icon-only icon-del"><%=l(:button_delete)%></a>';
+            html += '&nbsp;&nbsp;&nbsp;<a href="#" class="btn_remove_mapping icon-only icon-del"><%=l(:button_delete)%></a>';
         }
         html += '</td>';
         html += '</tr>';
@@ -164,8 +180,28 @@ redmine_columns = MicrosoftProjectConnectorController.helpers.available_redmine_
 
     $(function() {
         $('#settings [name=commit]').parent().append('&nbsp;&nbsp;<a href="http://conveniencable.com/download/msprc/<%=available_client_versions[available_client_versions.length - 1]%>"><%=l(:button_download_msp_plugin)%></a>')
+
+        var $columnsBody = $('#body_mapping');
+        $columnsBody.sortable($.extend({
+            axis: 'y',
+            handle: ".sort-handle",
+            helper: function(event, ui){
+                ui.children('td').each(function(){
+                $(this).width($(this).width());
+                });
+                return ui;
+            }
+        }, {}));
     });
 
 </script>
+<style>
+.sort-handle {
+    width: 16px;
+    height: 16px;
+    background: url(/images/reorder.png) no-repeat 0 50%;
+    cursor: move;
+}
+</style>
 
 <% html_title(l(:label_settings), l(:labe_corp_wechats)) -%>

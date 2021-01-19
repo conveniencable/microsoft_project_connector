@@ -34,6 +34,7 @@
   label_r_start_start: '<-開始-開始(SS)'
   label_r_start_finish: '<-開始-完成(SF)'
 
+  
   message_client_version_not_match: '這個Microsoft Project插件V%{client_version}和您所鏈接的Redmine系統不兼容, 請下載壹個兼容的並自行安裝。'
   message_overwrite_tasks: '有些任務未保存到Redmine，妳想覆蓋它們嗎？'
   button_download_msp_plugin: '下載Microsoft Project插件'
