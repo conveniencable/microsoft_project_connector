@@ -1,6 +1,9 @@
 <%
 available_client_versions = MicrosoftProjectConnectorController.helpers.available_client_versions
-redmine_columns = MicrosoftProjectConnectorController.helpers.available_redmine_columns 
+redmine_columns = MicrosoftProjectConnectorController.helpers.available_redmine_columns
+
+temp_query = IssueQuery.new
+not_inline_column_names = temp_query.available_columns.select{|c| !c.inline?}.map{|c| c.name}
 
 on_task_delete_options = [
     [l(:on_task_delete_none), ''],
@@ -49,6 +52,7 @@ on_task_delete_options = [
     var MSPFieldS = <%= MicrosoftProjectConnectorController.helpers.available_msp_fields.to_json.html_safe %>;
     var RedmineColumns = <%= redmine_columns.to_json.html_safe %>;
     var ColumnTitles = '<%= l(:task_column_titles) %>'.split('||');
+    var NotInlineColumnNames = '<%=not_inline_column_names.to_json.html_safe %>'
 
     $.each(<%=MicrosoftProjectConnectorController.helpers.msc_columns_mapping_settings.to_json.html_safe %>, function(i, o) {
         var redmineColumn = RedmineColumns.find(function(rc) {
@@ -122,10 +126,25 @@ on_task_delete_options = [
         html += '</tr>';
         $('#body_mapping').append(html);
 
-        $('#select_redmine_columns option[value=' + columnName + ']').prop('disabled', true);
+        $('#select_redmine_columns option[value="' + columnName + '"]').prop('disabled', true);
     }
 
     function generateMspOptions(redmineColumn, selectedMspFieldName) {
+        if (NotInlineColumnNames.includes(redmineColumn.name)) {
+            var usedMspFields = $('#body_mapping .select_msp_field').toArray().map(function(s) {
+                return s.value;
+            }).filter(function(f) {
+                return !!f;
+            });
+
+            //multiple line only can map to Notes
+            return MSPFieldS.filter(function(f) {
+                return f.name == 'Notes';
+            }).map(function(f) {
+                return '<option value="' + f.name + '" ' + (selectedMspFieldName && selectedMspFieldName === f.name ? 'selected' : '') + ' ' + (usedMspFields.indexOf(f.name) === -1 ? '' : 'disabled') + '>' + (ColumnTitles[f.title_index] || '') + (f.readonly ? ' (<%=l(:label_readonly)%>)' : '') + '</option>';
+            }).join('');
+        }
+
         var acceptFormats;
 
         var format = redmineColumn.field_format || 'string';
@@ -159,9 +178,9 @@ on_task_delete_options = [
             return !!f;
         });
 
-        return [{name: '', title_index: -1}].concat(MSPFieldS.filter(function(f) {
+        return MSPFieldS.filter(function(f) {
             return acceptFormats.indexOf(f.type) !== -1;
-        })).map(function(f) {
+        }).map(function(f) {
             return '<option value="' + f.name + '" ' + (selectedMspFieldName && selectedMspFieldName === f.name ? 'selected' : '') + ' ' + (usedMspFields.indexOf(f.name) === -1 ? '' : 'disabled') + '>' + (ColumnTitles[f.title_index] || '') + (f.readonly ? ' (<%=l(:label_readonly)%>)' : '') + '</option>';
         }).join('');
     }

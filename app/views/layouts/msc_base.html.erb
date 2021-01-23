@@ -15,8 +15,10 @@
 
     <%= stylesheet_link_tag 'rtl', :media => 'all' if l(:direction) == 'rtl' %>
 
-    <%= javascript_include_tag 'ie-fixed', :plugin => 'microsoft_project_connector' %>
     <%= javascript_heads %>
+
+    <%= javascript_include_tag 'main', :plugin => 'microsoft_project_connector' %>
+    <%= stylesheet_link_tag 'application', 'application', :media => 'all', :plugin => 'microsoft_project_connector' %>
 </head>
 
 <body style="padding: 5px; min-width: auto">

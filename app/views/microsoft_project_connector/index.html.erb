@@ -14,7 +14,14 @@
 <button onclick="window.location.reload()"><%=l(:button_fixed_and_refresh)%></button>
 <% else %>
 <div class="project_jump_box_wrap">
-    <%= render_project_jump_box %>
+    <select id="project_combobox">
+      <% unless @project.present? %>
+            <option value="0"><%=l(:text_select_a_project)%></option>
+      <% end %>
+      <% Project.project_tree(User.current.projects.each) do |project, level| %>
+          <option value="<%=project.id%>" <%=@project.present? && @project.id == project.id ? 'selected' : '' %>><%=level > 0 ? "#{'&nbsp;&nbsp;' * level}»".html_safe : ''%><%=project.name %></option>
+      <% end %>
+    </select>
 
     <% if false && @project %>
     <%
@@ -43,16 +50,17 @@ var labelDayPlural = <%= raw_json l(:label_day_plural) %>;
 var filtersUrl = <%= raw_json queries_filter_path(:project_id => @query.project.try(:id), :type => 'IssueQuery') %>;
 
 $(document).ready(function(){
-initFilters();
-<% @query.filters.each do |field, options| %>
-addFilter("<%= field %>", <%= raw_json @query.operator_for(field) %>, <%= raw_json @query.values_for(field) %>);
-<% end %>
+    initFilters();
+    <% @query.filters.each do |field, options| %>
+    addFilter("<%= field %>", <%= raw_json @query.operator_for(field) %>, <%= raw_json @query.values_for(field) %>);
+    <% end %>
 
-window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id%>']))
+    window.chrome.webview && window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id%>']));
 });
 <% end %>
 
 <div class="filter-div">
+    <div class="progress" id="loadIssueProgress"></div>
     <div class="add-filter">
         <h3><%= l(:label_filter_plural) %></h3>
         <div class="select-div">
@@ -85,9 +93,11 @@ window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id
     </div>
 
     <div class="filter-actions">
-        <button id="btn_load" class="msp_btn"><%=l(:button_load_to_project)%><img src="<%= request.base_url %>/images/loading.gif" /></button>
+        <button id="btn_load" class="msp_btn"><%=l(:button_load)%><img src="<%= request.base_url %>/images/loading.gif" /></button>
         &nbsp;&nbsp;
-        <button id="btn_save" class="msp_btn"><%=l(:button_save_to_redmine)%><img src="<%= request.base_url %>/images/loading.gif" /></button>
+        <button id="btn_load_and_merge" class="msp_btn"><%=l(:button_load_and_merge)%><img src="<%= request.base_url %>/images/loading.gif" /></button>
+        &nbsp;&nbsp;
+        <button id="btn_save" class="msp_btn"><%=l(:button_save)%><img src="<%= request.base_url %>/images/loading.gif" /></button>
     </div>
     <% include_calendar_headers_tags %>
 </div>
@@ -112,7 +122,7 @@ window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id
 </div>
 
 <script>
-    function loadSetting() {
+    function loadSetting(isMerge) {
         var f = [];
         var op = {};
         var v = {};
@@ -155,11 +165,11 @@ window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id
             },
             dataType: 'text'
         }).then(function(json) {
-            window.chrome.webview.postMessage(JSON.stringify(['loadSetting', json]));
+            window.chrome.webview.postMessage(JSON.stringify(['loadSetting', json, isMerge + '']));
         });
     }
 
-    function loadIssues() {
+    function loadIssues(isMerge) {
         $.ajax({
             url: '<%=microsoft_project_connector_query_path%>',
             method: 'post',
@@ -169,38 +179,59 @@ window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id
             },
             dataType: 'text'
         }).then(function(json) {
-            window.chrome.webview.postMessage(JSON.stringify(['loadIssues', json]));
+            window.chrome.webview.postMessage(JSON.stringify(['loadIssues', json, isMerge + '']));
         });
 
-        window.loadIssueAgain = function(offset, limit) {
+        var $loadIssueProgress = $('#loadIssueProgress');
+
+        window.loadIssueAgain = function(offset, limit, total, isMerge) {
+            $loadIssueProgress.css('width', (((offset + limit) / total) * 100).toFixed(2) + '%');
             $.ajax({
                 url: '<%=microsoft_project_connector_query_path%>',
                 method: 'post',
                 data: {
                     project_id: '<%= @project.id %>',
                     limit: limit,
-                    offset: (limit + 1) * offset
+                    offset: offset + limit
                 },
                 dataType: 'text'
             }).then(function(json) {
-                window.chrome.webview.postMessage(JSON.stringify(['loadIssues', json]));
+                window.chrome.webview.postMessage(JSON.stringify(['loadIssues', json, isMerge]));
             });
         }
     }
 
     $('#btn_load').click(function(e) {
-        var $btn = $('#btn_load');
+        var $btn = $(e.currentTarget);
         if ($btn.hasClass('loading')) {
             return;
         } else {
             $btn.addClass('loading');
         }
-        window.chrome.webview.postMessage(JSON.stringify(['startLoadIssues']));
+
+        window.stopLoadIssues = function() {
+            $btn.removeClass('loading');
+            $('#loadIssueProgress').css('width', 0);
+        }
+
+        window.chrome.webview.postMessage(JSON.stringify(['startLoadIssues', 'false']));
     });
 
-    function stopLoadIssues() {
-        $('#btn_load').removeClass('loading');
-    }
+    $('#btn_load_and_merge').click(function(e) {
+        var $btn = $(e.currentTarget);
+        if ($btn.hasClass('loading')) {
+            return;
+        } else {
+            $btn.addClass('loading');
+        }
+
+        window.stopLoadIssues = function() {
+            $btn.removeClass('loading');
+            $('#loadIssueProgress').css('width', 0);
+        }
+
+        window.chrome.webview.postMessage(JSON.stringify(['startLoadIssues', 'true']));
+    });
 
     function loadSettingAndSave() {
         return loaddSettingForSave().then(function(success) {
@@ -225,7 +256,7 @@ window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id
         });
     }
 
-    function loadSettingForSave() {
+    function loadSettingForSave(customCallback) {
         return $.ajax({
             url: '<%=microsoft_project_connector_settings_path%>',
             method: 'get',
@@ -235,7 +266,11 @@ window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id
             },
             dataType: 'text'
         }).then(function(json) {
-            window.chrome.webview.postMessage(JSON.stringify(['loadSettingForSave', json]));
+            if (customCallback) {
+                customCallback(json);
+            } else {
+                window.chrome.webview.postMessage(JSON.stringify(['loadSettingForSave', json]));
+            }
         });
     }
 
@@ -380,9 +415,9 @@ window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id
         });
     }
 
-    function confirmOverWrite() {
+    function confirmOverWrite(isMerge) {
         showConfirm("<%=l(:message_overwrite_tasks)%>", function () {
-            loadSetting();
+            loadSetting(isMerge);
         }, function () {
             stopLoadIssues();
         });
@@ -422,13 +457,12 @@ window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id
 
 <script>
     $(document).ready(function() {
-        $('#project-jump').delegate('.drdn-items.projects > a', 'click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            var $a = $(e.currentTarget);
-            var id = $a.attr('href').match(/projects\/([^?]+)/)[1]
-            window.location = window.location.toString().split('&project_id=')[0] + '&project_id=' + id;
-        }).find('.drdn-trigger').html('<%=@project ? @project.name : l(:text_select_a_project)%>');
+        $('#project_combobox').on('change', function (e) {
+             var id = parseInt(e.currentTarget.value);
+             if (id > 0) {
+                 window.location = window.location.toString().split('&project_id=')[0] + '&project_id=' + id;
+             }
+        }).combobox();
 
         var $selectableColumnsBody = $('#selectable_columns_body');
         $selectableColumnsBody.sortable($.extend({
@@ -499,30 +533,9 @@ window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id
 </script>
 
 <style>
-    #project-jump {
-        text-align: left;
-    }
-
-    #project-jump.drdn {
-        width: 100% !important;
-        display: inline-block;
-    }
-
     .project_jump_box_wrap {
         padding-left: 0;
     }
-
-    #project-jump .drdn-trigger {
-        color: #333;
-        font-size: 1.2rem;
-        height: 2rem;
-    }
-
-    #project-jump .drdn-content {
-        left: 0;
-        right: auto;
-    }
-
 
     table.error-table .td_line_no {
         width: 2rem;
@@ -555,9 +568,23 @@ window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id
     }
 
     .filter-div {
+        position: relative;
         margin-top: 0.5rem;
         padding: 0.5rem 0;
         border: 1px solid #ccc;
+    }
+
+    .filter-div > .progress {
+        position: absolute;
+        opacity: 0.618;
+        background: #000;
+        pointer-events: none;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1;
+        width: 0;
+        transition: 100ms width;
     }
 
     #query_form_content {

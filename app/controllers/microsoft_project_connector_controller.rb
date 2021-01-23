@@ -25,10 +25,14 @@ class MicrosoftProjectConnectorController < ApplicationController
     if @project
       repeat_names_check = Hash.new
       repeat_names = []
+      invalid_names = []
 
       @project.members.each do |member|
         id = member.user_id
         name = member.name
+        if name.include? "\t"
+          invalid_names << name
+        end
         if repeat_names_check[name]
           if repeat_names_check[name] != id
             repeat_names << name
@@ -36,6 +40,11 @@ class MicrosoftProjectConnectorController < ApplicationController
         else
           repeat_names_check[name] = id
         end
+      end
+
+      unless invalid_names.blank?
+        @error = l(:members_name_invalid, :names => invalid_names.join(', '))
+        return
       end
 
       unless repeat_names.blank?
@@ -154,8 +163,6 @@ class MicrosoftProjectConnectorController < ApplicationController
     new_issues_data = []
     
     if issues_hash.present? && !issues_hash.blank?
-      members = @project.members
-
       guid_to_id = Hash.new
       depencencies = []
       exclude_removing_dependencies = []

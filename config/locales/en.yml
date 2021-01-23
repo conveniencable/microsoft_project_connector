@@ -3,8 +3,8 @@ en:
   microsoft_project_connector: 'MS Project Connector'
   mpc_default_role: 'Default Role'
 
-  button_load_to_project: 'Load Issues to Project'
-  button_save_to_redmine: 'Save Tasks to Redmine'
+  button_load: 'Load'
+  button_load_and_merge: 'Load and Merge'
 
   columns_mapping: 'Columns Mapping'
 
@@ -14,6 +14,7 @@ en:
   issue_not_exists: 'Issue#%{id} Does Not Exists Or Is Deleted'
 
   members_name_repeat: 'There Are Duplication of Names: %{names}, Please Fix It before Retry'
+  members_name_invalid: 'There Are Invalid Format of Names: %{names}, Please Fix It before Retry'
 
   button_fixed_and_refresh: 'Fixed and Reload'
 
@@ -42,7 +43,7 @@ en:
 
   button_download_msp_plugin: 'Download Microsoft Project Plugin'
 
-  text_select_a_project: Select a project...
+  text_select_a_project: 'Select a project...'
 
   on_task_delete: 'When The Tasks on Miscrosoft Project Is Deleted'
   on_task_delete_none: 'do nothing'

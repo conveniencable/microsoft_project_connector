@@ -20,13 +20,9 @@ Restart Redmine, and you should see the plugin show up in the Plugins page.
 Under the plugin configuration options, you can set field mappings between Redmine and Microsoft Project:
 ![MetroFramework](https://conveniencable.github.io/images/redmine_setting.jpg)
 
-## Microsoft Project to Redmine bi-directional synchronization
+## Microsoft Project to Redmine bi-directional synchronization, Relations and Subtasks are supported
 ![MetroFramework](https://conveniencable.github.io/images/load_issues.jpg)
-![MetroFramework](https://conveniencable.github.io/images/redmine_issues.jpg)
-
-## Relations and Subtasks
-![MetroFramework](https://conveniencable.github.io/images/issues_relation.jpg)
-![MetroFramework](https://conveniencable.github.io/images/sub_tasks.jpg)
+![MetroFramework](https://conveniencable.github.io/images/issues_relations_and_subtasks.jpg)
 
 
 
