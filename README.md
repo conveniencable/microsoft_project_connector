@@ -25,7 +25,7 @@ Under the plugin configuration options, you can set field mappings between Redmi
 ![RelationsAndSubTasks](https://conveniencable.github.io/images/issues_relations_and_subtasks.jpg)
 
 
-## VSTO Download
-[Redmine Connector X64](https://conveniencable.github.io/downloads/redmine_connector_x64.exe)
-[Redmine Connector X32](https://conveniencable.github.io/downloads/redmine_connector_x86.exe)
+## Microsoft Project Plugin Redmine Connector Download
+[ X64](https://conveniencable.github.io/downloads/redmine_connector_x64.exe)
+[X32](https://conveniencable.github.io/downloads/redmine_connector_x86.exe)
 
