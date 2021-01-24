@@ -238,7 +238,11 @@ class MicrosoftProjectConnectorController < ApplicationController
           issue_obj = Issue.new
           issue_obj.author = User.current
           issue_obj.safe_attributes = issue_data
-          issue_obj.parent_id = guid_to_id[issue_data[:parent_guid]]
+          if issue_data[:parent_id]
+            issue_obj.parent_id = issue_data[:parent_id]
+          elsif issue_data[:parent_guid]
+            issue_obj.parent_id = guid_to_id[issue_data[:parent_guid]]
+          end
           if issue_obj.save
             issue_obj[:id] = issue_obj.id
             new_issues_data.append :id => issue_obj.id, :created_on => format_time(issue_obj.created_on), :updated_on => format_time(issue_obj.updated_on), :author => issue_obj.author.name, :last_updated_by => issue_obj.author.name, :guid => issue_data[:guid]

@@ -26,6 +26,6 @@ Under the plugin configuration options, you can set field mappings between Redmi
 
 
 ## Microsoft Project Plugin Redmine Connector Download
-[ X64](https://conveniencable.github.io/downloads/redmine_connector_x64.exe)
+[X64](https://conveniencable.github.io/downloads/redmine_connector_x64.exe)
 [X32](https://conveniencable.github.io/downloads/redmine_connector_x86.exe)
 
