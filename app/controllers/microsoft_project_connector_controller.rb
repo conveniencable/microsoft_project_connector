@@ -9,6 +9,8 @@ class MicrosoftProjectConnectorController < ApplicationController
   before_action :find_optional_project, :only => [:index, :query, :doQuery, :settings, :save]
 
   before_action :require_login, :except => [:test, :login]
+  
+  skip_before_action :check_if_login_required, :only => [:test]
 
   layout 'msc_base'
 
