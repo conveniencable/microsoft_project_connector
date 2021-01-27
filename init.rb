@@ -1,10 +1,10 @@
 Redmine::Plugin.register :microsoft_project_connector do
   name 'Microsoft Project Connector'
-  author 'Chen Wei'
-  description 'This is a plugin for Redmine'
-  version '0.0.1'
-  url 'http://example.com/path/to/plugin'
-  author_url 'http://example.com/about'
+  author 'Li Chan'
+  description 'A Redmine Plugin to Work with MS Project'
+  version '1.0.0'
+  url 'https://github.com/conveniencable/microsoft_project_connector'
+  author_url 'https://github.com/conveniencable'
 
   permission :microsoft_project_connector_setting, { :microsoft_project_connector => [:setting] }, :public => true
   permission :microsoft_project_connector_using, { :microsoft_project_connector => [:query] }, :public => true
