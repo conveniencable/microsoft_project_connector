@@ -52,7 +52,8 @@ on_task_delete_options = [
     var MSPFieldS = <%= MicrosoftProjectConnectorController.helpers.available_msp_fields.to_json.html_safe %>;
     var RedmineColumns = <%= redmine_columns.to_json.html_safe %>;
     var ColumnTitles = '<%= l(:task_column_titles) %>'.split('||');
-    var NotInlineColumnNames = '<%=not_inline_column_names.to_json.html_safe %>'
+    var NotInlineColumnNames = '<%=not_inline_column_names.to_json.html_safe %>';
+    var PRESERVE_FIELDS = ['id', 'assigned_to'];
 
     $.each(<%=MicrosoftProjectConnectorController.helpers.msc_columns_mapping_settings.to_json.html_safe %>, function(i, o) {
         var redmineColumn = RedmineColumns.find(function(rc) {
@@ -108,7 +109,7 @@ on_task_delete_options = [
         var html = '<tr data-field="' + columnName + '">';
         html += '<td>' + (redmineColumn && redmineColumn.label) + ' <input type="hidden"  name="settings[mpc_columns_mapping][][redmine]" value="' + columnName + '"/></td>';
         html += '<td>';
-        if(['id', 'assigned_to'].indexOf(columnName) === -1 || !mspFieldName) {
+        if(PRESERVE_FIELDS.indexOf(columnName) === -1 || !mspFieldName) {
             html += '<select class="select_msp_field" data-ov="' + (mspFieldName || '') + '" name="settings[mpc_columns_mapping][][msp]">' + generateMspOptions(redmineColumn, mspFieldName) + '</select>';
         } else {
             var mspField = MSPFieldS.find(function(f) {
@@ -117,10 +118,10 @@ on_task_delete_options = [
             html += ColumnTitles[mspField.title_index] + '<input type="hidden" name="settings[mpc_columns_mapping][][msp]" value="' + mspFieldName + '" />';
         }
         html += '</td>';
-        html += '<td>';
+        html += '<td class="operation">';
         html += '<span class="sort-handle"></span>';
-        if(['id', 'assigned_to'].indexOf(columnName) === -1) {
-            html += '&nbsp;&nbsp;&nbsp;<a href="#" class="btn_remove_mapping icon-only icon-del"><%=l(:button_delete)%></a>';
+        if(PRESERVE_FIELDS.indexOf(columnName) === -1) {
+            html += '&nbsp;&nbsp;&nbsp;<a href="#" class="btn_remove_mapping icon icon-del">&nbsp;</a>';
         }
         html += '</td>';
         html += '</tr>';
@@ -131,16 +132,12 @@ on_task_delete_options = [
 
     function generateMspOptions(redmineColumn, selectedMspFieldName) {
         if (NotInlineColumnNames.includes(redmineColumn.name)) {
-            var usedMspFields = $('#body_mapping .select_msp_field').toArray().map(function(s) {
-                return s.value;
-            }).filter(function(f) {
-                return !!f;
-            });
+            var usedMspFields = getUsedMspFields();
 
             //multiple line only can map to Notes
-            return MSPFieldS.filter(function(f) {
+            return ([{name: ''}].concat(MSPFieldS.filter(function(f) {
                 return f.name == 'Notes';
-            }).map(function(f) {
+            }))).map(function(f) {
                 return '<option value="' + f.name + '" ' + (selectedMspFieldName && selectedMspFieldName === f.name ? 'selected' : '') + ' ' + (usedMspFields.indexOf(f.name) === -1 ? '' : 'disabled') + '>' + (ColumnTitles[f.title_index] || '') + (f.readonly ? ' (<%=l(:label_readonly)%>)' : '') + '</option>';
             }).join('');
         }
@@ -172,17 +169,21 @@ on_task_delete_options = [
             return '';
         }
 
-        var usedMspFields = $('#body_mapping .select_msp_field').toArray().map(function(s) {
+        var usedMspFields = getUsedMspFields();
+
+        return ([{name: ''}].concat(MSPFieldS.filter(function(f) {
+            return acceptFormats.indexOf(f.type) !== -1;
+        }))).map(function(f) {
+            return '<option value="' + f.name + '" ' + (selectedMspFieldName && selectedMspFieldName === f.name ? 'selected' : '') + ' ' + (usedMspFields.indexOf(f.name) === -1 ? '' : 'disabled') + '>' + (ColumnTitles[f.title_index] || '') + (f.readonly ? ' (<%=l(:label_readonly)%>)' : '') + '</option>';
+        }).join('');
+    }
+
+    function getUsedMspFields() {
+        return $('#body_mapping [name="settings[mpc_columns_mapping][][msp]"]').toArray().map(function(s) {
             return s.value;
         }).filter(function(f) {
             return !!f;
-        });
-
-        return MSPFieldS.filter(function(f) {
-            return acceptFormats.indexOf(f.type) !== -1;
-        }).map(function(f) {
-            return '<option value="' + f.name + '" ' + (selectedMspFieldName && selectedMspFieldName === f.name ? 'selected' : '') + ' ' + (usedMspFields.indexOf(f.name) === -1 ? '' : 'disabled') + '>' + (ColumnTitles[f.title_index] || '') + (f.readonly ? ' (<%=l(:label_readonly)%>)' : '') + '</option>';
-        }).join('');
+        })
     }
 
     function disabledMspOption(fieldName, disabled) {
@@ -216,11 +217,24 @@ on_task_delete_options = [
 </script>
 <style>
 .sort-handle {
+    display: inline-block;
     width: 16px;
     height: 16px;
     background: url(/images/reorder.png) no-repeat 0 50%;
     cursor: move;
 }
+
+table.list th,
+table.list td{
+    padding: 3px 5px;
+    text-align: left;
+}
+
+table.list td.operation {
+    width: 1px;
+    white-space: nowrap;
+}
+
 </style>
 
 <% html_title(l(:label_settings), l(:labe_corp_wechats)) -%>

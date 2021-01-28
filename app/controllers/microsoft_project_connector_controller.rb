@@ -6,7 +6,7 @@ class MicrosoftProjectConnectorController < ApplicationController
   helper :queries
   include QueriesHelper
 
-  before_action :find_optional_project, :only => [:index, :query, :doQuery, :settings, :save]
+  before_action :find_optional_project, :only => [:index, :query, :settings, :save]
 
   before_action :require_login, :except => [:test, :login]
   
@@ -61,14 +61,14 @@ class MicrosoftProjectConnectorController < ApplicationController
         end
       end
 
-      retrieve_query(MicrosoftProjectConnectorQuery)
+      retrieve_msp_query
 
       session['mspc_project_id'] = @project.id
     end
   end
 
   def view_query
-    retrieve_query(MicrosoftProjectConnectorQuery)
+    retrieve_msp_query
 
     render :json => {
       :operatorLabels => Query.operators_labels,
@@ -88,7 +88,7 @@ class MicrosoftProjectConnectorController < ApplicationController
       return
     end
 
-    retrieve_query(MicrosoftProjectConnectorQuery)
+    retrieve_msp_query
 
     query = MicrosoftProjectConnectorQuery.where(:name => 'default', :project_id => @project.id).first
 
@@ -117,7 +117,7 @@ class MicrosoftProjectConnectorController < ApplicationController
   end
 
   def query
-    retrieve_query(MicrosoftProjectConnectorQuery)
+    retrieve_msp_query
 
     if @query.valid?
       @offset, @limit = api_offset_and_limit
@@ -170,12 +170,14 @@ class MicrosoftProjectConnectorController < ApplicationController
       exclude_removing_dependencies = []
 
       issues_hash.each do |issue_hash|
-        issue_data = { :project_id => @project.id }
+        issue_data = { }
 
         custom_fields = []
 
+        line_no = issue_hash['line_no']
         id = issue_hash['id'].to_i
         guid = issue_hash['guid']
+        parent_guid = issue_hash['parent_guid']
 
         exclude_removing_dependency = {:to_id => id, :to_guid => guid, :from_ids => [], :from_guids => []}
         exclude_removing_dependencies.append exclude_removing_dependency
@@ -198,7 +200,7 @@ class MicrosoftProjectConnectorController < ApplicationController
               else
                 exclude_removing_dependency[:from_guids].append from_guid
               end
-              depencencies << {:type => type, :lag => lag, :from_id => from_id, :from_guid => from_guid, :to_id => id, :to_guid => guid, :line_no => issue_hash['line_no']}
+              depencencies << {:type => type, :lag => lag, :from_id => from_id, :from_guid => from_guid, :to_id => id, :to_guid => guid, :line_no => line_no}
             end            
           else
             field_name = field_arr[0]
@@ -217,9 +219,10 @@ class MicrosoftProjectConnectorController < ApplicationController
         if id > 0
           issue_obj = Issue.where(:id => id).first
           unless issue_obj
-            errors << [issue_data[:line_no], l(:issue_not_exists, :id => id)]	
+            errors << [line_no, l(:issue_not_exists, :id => id)]	
           else
             issue_obj.init_journal(User.current)
+            issue_obj.project_id = @project.id
             issue_obj.safe_attributes = issue_data
             if issue_hash['parent_id']
               issue_obj.parent_id = issue_hash['parent_id']
@@ -228,29 +231,30 @@ class MicrosoftProjectConnectorController < ApplicationController
             end
 
             if issue_obj.save
-              new_issues_data.append :updated_on => format_time(issue_obj.updated_on), :last_updated_by => issue_obj.last_updated_by && issue_obj.last_updated_by.name, :guid => issue_data[:guid]
+              new_issues_data.append :updated_on => format_time(issue_obj.updated_on), :last_updated_by => issue_obj.last_updated_by && issue_obj.last_updated_by.name, :guid => guid
             else
-              errors << [issue_data[:line_no], issue_obj.errors.full_messages.join('; ')]
+              errors << [line_no, issue_obj.errors.full_messages.join('; ')]
             end
             
-            guid_to_id[issue_data[:guid]] = issue_obj.id
+            guid_to_id[guid] = issue_obj.id
           end
 
         else
           issue_obj = Issue.new
           issue_obj.author = User.current
+          issue_obj.project_id = @project.id
           issue_obj.safe_attributes = issue_data
           if issue_data[:parent_id]
             issue_obj.parent_id = issue_data[:parent_id]
-          elsif issue_data[:parent_guid]
-            issue_obj.parent_id = guid_to_id[issue_data[:parent_guid]]
+          elsif parent_guid
+            issue_obj.parent_id = guid_to_id[parent_guid]
           end
           if issue_obj.save
             issue_obj[:id] = issue_obj.id
-            new_issues_data.append :id => issue_obj.id, :created_on => format_time(issue_obj.created_on), :updated_on => format_time(issue_obj.updated_on), :author => issue_obj.author.name, :last_updated_by => issue_obj.author.name, :guid => issue_data[:guid]
-            guid_to_id[issue_data[:guid]] = issue_obj.id 
+            new_issues_data.append :id => issue_obj.id, :created_on => format_time(issue_obj.created_on), :updated_on => format_time(issue_obj.updated_on), :author => issue_obj.author.name, :last_updated_by => issue_obj.author.name, :guid => guid
+            guid_to_id[guid] = issue_obj.id 
           else
-            errors << [issue_data[:line_no], issue_obj.errors.full_messages.join('; ')]
+            errors << [line_no, issue_obj.errors.full_messages.join('; ')]
           end
         end
       end

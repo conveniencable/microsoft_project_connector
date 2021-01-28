@@ -7,13 +7,13 @@ module MicrosoftProjectConnector
   
       def self.included(base)
         base.send(:include, InstanceMethods)
-        base.class_eval do
-            unloadable
-            #alias_method_chain :build_new_issue_from_params, :qy_wechat
-            # alias_method_chain :would_reschedule?, :microsoft_project_connector
 
-            alias_method :would_reschedule_without_microsoft_project_connector?, :would_reschedule?
-            alias_method :would_reschedule?, :would_reschedule_with_microsoft_project_connector?
+        if Issue.method_defined? :would_reschedule?
+          base.class_eval do
+              unloadable
+              alias_method :would_reschedule_without_microsoft_project_connector?, :would_reschedule?
+              alias_method :would_reschedule?, :would_reschedule_with_microsoft_project_connector?
+          end
         end
       end
   

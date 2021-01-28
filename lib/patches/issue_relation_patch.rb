@@ -18,17 +18,17 @@ module MicrosoftProjectConnector
   
       def self.included(base)
         base.send(:include, InstanceMethods)
-        base.class_eval do
-            unloadable
-            #alias_method_chain :circular_dependency?, :microsoft_project_connector
-            #alias_method_chain :handle_issue_order, :microsoft_project_connector
-            #alias_method_chain :set_issue_to_dates, :microsoft_project_connector
 
-            alias_method :circular_dependency_without_microsoft_project_connector?, :circular_dependency?
-            alias_method :circular_dependency?, :circular_dependency_with_microsoft_project_connector?
+        if IssueRelation.method_defined? :circular_dependency?
+          base.class_eval do
+              unloadable
+              
+              alias_method :circular_dependency_without_microsoft_project_connector?, :circular_dependency?
+              alias_method :circular_dependency?, :circular_dependency_with_microsoft_project_connector?
 
-            alias_method :handle_issue_order_without_microsoft_project_connector, :handle_issue_order
-            alias_method :handle_issue_order, :handle_issue_order_with_microsoft_project_connector
+              alias_method :handle_issue_order_without_microsoft_project_connector, :handle_issue_order
+              alias_method :handle_issue_order, :handle_issue_order_with_microsoft_project_connector
+          end
         end
   
         new_types = base::TYPES.merge(
