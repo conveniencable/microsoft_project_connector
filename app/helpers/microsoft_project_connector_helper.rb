@@ -370,7 +370,6 @@ module MicrosoftProjectConnectorHelper
 
     custom_fields = CustomField.all().to_ary()
 
-    default_tracker = nil
     all_statuses = IssueStatus.all().to_ary
 
     columns = columns.map do |c|
@@ -439,6 +438,10 @@ module MicrosoftProjectConnectorHelper
           end
         when 'status'
           possible_values = all_statuses.map { |v| v.name }
+          default_status = all_statuses.find{|s| s.is_default}
+          if default_status
+            default_value = default_status.name
+          end
         when 'priority'
           active_priorities = IssuePriority.active
           possible_values = active_priorities.map { |v| v.name }
@@ -466,14 +469,6 @@ module MicrosoftProjectConnectorHelper
     columns.each do |column|
       msp_mapping = columns_mapping.find { |m| m['redmine'] == column[:name] }
       column[:msp_field] = msp_mapping['msp'] if msp_mapping
-
-      if column[:name] == 'status' && default_tracker
-        default_status_id = default_tracker.default_status_id
-        if default_status_id
-          default_status = all_statuses.find { |s| s.id == default_status_id }
-          column[:default_value] = default_status.name if default_status
-        end
-      end
     end
 
     columns

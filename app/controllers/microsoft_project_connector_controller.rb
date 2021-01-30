@@ -6,11 +6,11 @@ class MicrosoftProjectConnectorController < ApplicationController
   helper :queries
   include QueriesHelper
 
-  before_action :find_optional_project, :only => [:index, :query, :settings, :save]
+  before_filter :find_optional_project, :only => [:index, :query, :settings, :save]
 
-  before_action :require_login, :except => [:test, :login]
+  before_filter :require_login, :except => [:test, :login]
   
-  skip_before_action :check_if_login_required, :only => [:test]
+  skip_before_filter :check_if_login_required, :only => [:test]
 
   layout 'msc_base'
 
@@ -172,12 +172,13 @@ class MicrosoftProjectConnectorController < ApplicationController
       issues_hash.each do |issue_hash|
         issue_data = { }
 
-        custom_fields = []
+        custom_fields = {}
 
         line_no = issue_hash['line_no']
         id = issue_hash['id'].to_i
         guid = issue_hash['guid']
         parent_guid = issue_hash['parent_guid']
+        parent_id = issue_hash['parent_id'].to_i
 
         exclude_removing_dependency = {:to_id => id, :to_guid => guid, :from_ids => [], :from_guids => []}
         exclude_removing_dependencies.append exclude_removing_dependency
@@ -206,49 +207,56 @@ class MicrosoftProjectConnectorController < ApplicationController
             field_name = field_arr[0]
             if field_name.start_with? 'cf_'
               field_id = field_name[3..-1].to_i
-
-              custom_fields << {:id => field_id, :value => parse_msp_custom_field_value(field_id, field_arr[1], custom_field_objects, custom_field_cache)}
+              custom_fields[field_id] = parse_msp_custom_field_value(field_id, field_arr[1], custom_field_objects, custom_field_cache)
             else
               parse_msp_field_value(field_name, field_arr[1], issue_data)
             end
           end
         end
 
-        issue_data[:custom_fields] = custom_fields
+        if @@usedSym
+          issue_data[:custom_field_values] = custom_fields
+        else
+          issue_data['custom_field_values'] = custom_fields
+        end
+
+        if parent_id > 0
+          if @@usedSym
+            issue_data[:parent_issue_id] = parent_id
+          else
+            issue_data['parent_issue_id'] = parent_id
+          end
+        else
+          if @@usedSym
+            issue_data[:parent_issue_id] = parent_guid && guid_to_id[parent_guid] ? guid_to_id[parent_guid] : nil
+          else
+            issue_data['parent_issue_id'] = parent_guid && guid_to_id[parent_guid] ? guid_to_id[parent_guid] : nil
+          end
+        end
 
         if id > 0
           issue_obj = Issue.where(:id => id).first
+
           unless issue_obj
             errors << [line_no, l(:issue_not_exists, :id => id)]	
           else
             issue_obj.init_journal(User.current)
             issue_obj.project_id = @project.id
             issue_obj.safe_attributes = issue_data
-            if issue_hash['parent_id']
-              issue_obj.parent_id = issue_hash['parent_id']
-            else
-              issue_obj.parent_id = issue_hash['parent_guid'] && guid_to_id[issue_hash['parent_guid']] ? guid_to_id[issue_hash['parent_guid']] : nil
-            end
 
             if issue_obj.save
-              new_issues_data.append :updated_on => format_time(issue_obj.updated_on), :last_updated_by => issue_obj.last_updated_by && issue_obj.last_updated_by.name, :guid => guid
+              new_issues_data.append :updated_on => format_time(issue_obj.updated_on), :last_updated_by => nil, :guid => guid
             else
               errors << [line_no, issue_obj.errors.full_messages.join('; ')]
             end
             
             guid_to_id[guid] = issue_obj.id
           end
-
         else
           issue_obj = Issue.new
           issue_obj.author = User.current
           issue_obj.project_id = @project.id
           issue_obj.safe_attributes = issue_data
-          if issue_data[:parent_id]
-            issue_obj.parent_id = issue_data[:parent_id]
-          elsif parent_guid
-            issue_obj.parent_id = guid_to_id[parent_guid]
-          end
           if issue_obj.save
             issue_obj[:id] = issue_obj.id
             new_issues_data.append :id => issue_obj.id, :created_on => format_time(issue_obj.created_on), :updated_on => format_time(issue_obj.updated_on), :author => issue_obj.author.name, :last_updated_by => issue_obj.author.name, :guid => guid
@@ -320,14 +328,20 @@ class MicrosoftProjectConnectorController < ApplicationController
 
     error = ''
     if issue 
-      unless issue.deletable?
+      if (issue.respond_to?('deletable?') && !issue.deletable?)
         error = l(:not_authorized_to_delete)
+      else
+        issue.destroy
       end
-      issue.destroy
     end
 
     render :json => {
       :error => error
+    }
+
+  rescue ActiveRecord::RecordNotFound
+    render :json => {
+      :error => nil
     }
   end
 
