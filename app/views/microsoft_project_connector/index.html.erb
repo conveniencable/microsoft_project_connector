@@ -1,0 +1,616 @@
+<% if @client_not_match %>
+<div id="errorExplanation">
+    <%=l(:message_client_version_not_match, :client_version => params[:client_version])%>
+</div>
+<a href="#" onclick="window.chrome.webview.postMessage(JSON.stringify(['openUrl', 'http://conveniencable.com/download/msprc/<%=@client_not_match%>'])); return false"><%=l(:button_download_msp_plugin)%></a>
+
+<% elsif @error %>
+<div id="errorExplanation">
+    <ul>
+        <li><%=@error%></li>
+    </ul>
+</div>
+
+<button onclick="window.location.reload()"><%=l(:button_fixed_and_refresh)%></button>
+<% else %>
+<div class="project_jump_box_wrap">
+    <select id="project_combobox">
+      <% unless @project.present? %>
+            <option value="0"><%=l(:text_select_a_project)%></option>
+      <% end %>
+      <% Project.project_tree(User.current.projects.each) do |project, level| %>
+          <option value="<%=project.id%>" <%=@project.present? && @project.id == project.id ? 'selected' : '' %>><%=level > 0 ? "#{'&nbsp;&nbsp;' * level}»".html_safe : ''%><%=project.name %></option>
+      <% end %>
+    </select>
+
+    <% if false && @project %>
+    <%
+            queries = sidebar_queries(MicrosoftProjectConnectorQuery, @project)
+        %>
+    <div style="padding: 3px 0; border-bottom: 1px dashed #ccc">
+        <label><%=l(:label_query)%></label>
+        <select>
+            <% queries.each do |query| %>
+            <option value="<%=query.id%>" <%=query.id == params[:query_id] ? 'selected' : ''%>><%=query.name == 'default' ? l(:label_default) : query.name%></option>
+            <% end %>
+        </select>
+
+        <button id="btn_save_query">test</button>
+    </div>
+    <% end %>
+</div>
+<% if @project %>
+
+<%= javascript_tag do %>
+var operatorLabels = <%= raw_json Query.operators_labels %>;
+var operatorByType = <%= raw_json Query.operators_by_filter_type %>;
+var availableFilters = <%= raw_json @query.available_filters_as_json %>;
+var labelDayPlural = <%= raw_json l(:label_day_plural) %>;
+
+<% if self.respond_to? 'queries_filter_path' %>
+    var filtersUrl = <%= raw_json queries_filter_path(:project_id => @query.project.try(:id), :type => 'IssueQuery') %>;
+<% end %>
+
+$(document).ready(function(){
+    initFilters();
+    <% @query.filters.each do |field, options| %>
+    addFilter("<%= field %>", <%= raw_json @query.operator_for(field) %>, <%= raw_json @query.values_for(field) %>);
+    <% end %>
+
+    window.chrome.webview && window.chrome.webview.postMessage(JSON.stringify(['openProject', '<%=@project.id%>']));
+});
+<% end %>
+
+<div class="filter-div">
+    <div class="progress" id="loadIssueProgress"></div>
+    <div class="add-filter">
+        <h3><%= l(:label_filter_plural) %></h3>
+        <div class="select-div">
+            <%=l(:button_add)%>:&nbsp;<%= select_tag 'add_filter_select', filters_options_for_select(@query), :name => nil %>
+        </div>
+    </div>
+
+    <table id="filters-table" style="float: none">
+    </table>
+
+    <div id="query_form_content">
+        <h3><%=l(:field_column_names)%></h3>
+        <table>
+            <tbody id="selectable_columns_body">
+                <% available_mapped_columns(@query).each do |c| %>
+                <tr>
+                    <td>
+                        <input type="checkbox" name="columns" value="<%=c[1]%>" <%=c[2] ? 'checked' : ''%> <%=c[3] ? 'disabled' : ''%>>
+                    </td>
+                    <td>
+                        <%= c[0]%>
+                    </td>
+                    <td>
+                        <span class="sort-handle"></span>
+                    </td>
+                </tr>
+                <% end %>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="filter-actions">
+        <button id="btn_load" class="msp_btn"><%=l(:button_load)%><img src="<%= request.base_url %>/images/loading.gif" /></button>
+        &nbsp;&nbsp;
+        <button id="btn_load_and_merge" class="msp_btn"><%=l(:button_load_and_merge)%><img src="<%= request.base_url %>/images/loading.gif" /></button>
+        &nbsp;&nbsp;
+        <button id="btn_save" class="msp_btn"><%=l(:button_save)%><img src="<%= request.base_url %>/images/loading.gif" /></button>
+    </div>
+    <% include_calendar_headers_tags %>
+</div>
+
+<div id="modal-message" style="display: none"></div>
+
+<div id="dialog-error" title="<%=l(:title_error)%>" style="display: none">
+  <p><span class="ui-icon green ui-icon-alert" style="float:left; margin:0 7px 20px 0;"></span><span class="message"></span></p>
+</div>
+
+<div id="dialog-success" title="<%=l(:title_success)%>" style="display: none;">
+  <p><span class="ui-icon ui-icon-check" style="float:left; margin:0 7px 20px 0;"></span><span class="message"></span></p>
+</div>
+
+<div id="dialog-confirm" title="<%=l(:text_are_you_sure)%>" style="display: none">
+  <p><span class="ui-icon ui-icon-notice" style="float:left; margin:0 7px 20px 0;"></span><span class="message"></span></p>
+</div>
+
+<div id="dialog-exception" title="<%=l(:title_error)%>" style="display: none">
+  <p><span class="ui-icon ui-icon-alert" style="float:left; margin:0 7px 20px 0;"></span><span class="message"><%=l(:message_exception)%></span></p>
+  <div class="detail"></div>
+</div>
+
+<script>
+    function loadSetting(isMerge) {
+        var f = [];
+        var op = {};
+        var v = {};
+        $('#filters-table tr.filter').each(function(i, o) {
+            var $o = $(o);
+            var $f = $o.find('td.field input[name="f[]"]:checked');
+            if ($f[0]) {
+                var fieldName = $f.val();
+                var $op = $o.find('td.operator select');
+                var $v = $o.find('td.values [name="v[' + fieldName + '][]"]:not(:disabled)');
+
+                f.push(fieldName);
+                op[fieldName] = $op.val();
+
+                var values = $v.toArray().map(function(ip) {
+                    return $(ip).val()
+                });
+
+                if (values.length > 0) {
+                    v[fieldName] = values;
+                }
+            }
+        });
+
+        var columns = $('#query_form_content [name=columns]:checked').toArray().map(function(c) {
+            return c.value
+        });
+
+        return $.ajax({
+            url: '<%=microsoft_project_connector_settings_path%>',
+            method: 'get',
+            data: {
+                project_id: '<%= @project.id %>',
+                set_filter: 1,
+                f: f,
+                op: op,
+                v: v,
+                c: columns,
+                limit: 100
+            },
+            dataType: 'text'
+        }).then(function(json) {
+            window.chrome.webview.postMessage(JSON.stringify(['loadSetting', json, isMerge + '']));
+        });
+    }
+
+    function loadIssues(isMerge) {
+        $.ajax({
+            url: '<%=microsoft_project_connector_query_path%>',
+            method: 'post',
+            data: {
+                project_id: '<%= @project.id %>',
+                limit: 100
+            },
+            dataType: 'text'
+        }).then(function(json) {
+            window.chrome.webview.postMessage(JSON.stringify(['loadIssues', json, isMerge + '']));
+        });
+
+        var $loadIssueProgress = $('#loadIssueProgress');
+
+        window.loadIssueAgain = function(offset, limit, total, isMerge) {
+            $loadIssueProgress.css('width', (((offset + limit) / total) * 100).toFixed(2) + '%');
+            $.ajax({
+                url: '<%=microsoft_project_connector_query_path%>',
+                method: 'post',
+                data: {
+                    project_id: '<%= @project.id %>',
+                    limit: limit,
+                    offset: offset + limit
+                },
+                dataType: 'text'
+            }).then(function(json) {
+                window.chrome.webview.postMessage(JSON.stringify(['loadIssues', json, isMerge]));
+            });
+        }
+    }
+
+    $('#btn_load').click(function(e) {
+        var $btn = $(e.currentTarget);
+        if ($btn.hasClass('loading')) {
+            return;
+        } else {
+            $btn.addClass('loading');
+        }
+
+        window.stopLoadIssues = function() {
+            $btn.removeClass('loading');
+            $('#loadIssueProgress').css('width', 0);
+        }
+
+        window.chrome.webview.postMessage(JSON.stringify(['startLoadIssues', 'false']));
+    });
+
+    $('#btn_load_and_merge').click(function(e) {
+        var $btn = $(e.currentTarget);
+        if ($btn.hasClass('loading')) {
+            return;
+        } else {
+            $btn.addClass('loading');
+        }
+
+        window.stopLoadIssues = function() {
+            $btn.removeClass('loading');
+            $('#loadIssueProgress').css('width', 0);
+        }
+
+        window.chrome.webview.postMessage(JSON.stringify(['startLoadIssues', 'true']));
+    });
+
+    function loadSettingAndSave() {
+        return loaddSettingForSave().then(function(success) {
+            if (success) {
+                return saveTaskToIssues();
+            }
+        });
+    }
+
+    function saveIssues(issuesJsonStr) {
+        return $.ajax({
+            url: '<%=microsoft_project_connector_save_path%>',
+            method: 'post',
+            data: {
+                data: issuesJsonStr
+            },
+            dataType: 'text'
+        }).then(function(json) {
+            window.chrome.webview.postMessage(JSON.stringify(['updateNewTasks', json]));
+        }).always(function() {
+            $('#btn_save').removeClass('loading');
+        });
+    }
+
+    function loadSettingForSave(customCallback) {
+        return $.ajax({
+            url: '<%=microsoft_project_connector_settings_path%>',
+            method: 'get',
+            data: {
+                project_id: '<%= @project.id %>',
+                is_for_save: 1
+            },
+            dataType: 'text'
+        }).then(function(json) {
+            if (customCallback) {
+                customCallback(json);
+            } else {
+                window.chrome.webview.postMessage(JSON.stringify(['loadSettingForSave', json]));
+            }
+        });
+    }
+
+    $('#btn_save').click(function(e) {
+        var $btn = $(e.currentTarget);
+        if ($btn.hasClass('loading')) {
+            return;
+        } else {
+            $btn.addClass('loading');
+        }
+
+        loadSettingForSave();
+    });
+
+    function finishSavingIssue() {
+        $('#btn_save').removeClass('loading');
+    }
+
+    function showSaveMessage(errorsStr) {
+        if (errorsStr) {
+            var errors = JSON.parse(errorsStr)
+            if (errors && errors.length > 0) {
+                var html = '<table class="error-table"><thead><tr><th class="td_line_no"><%=l(:title_line_no)%></th><th><%=l(:title_error)%></th></tr></thead>';
+                html += '<tbody>';
+                html += errors.map(function(error) {
+                    return '<tr><td class="td_line_no">' + error[0] + '</td><td>' + error[1] + '</td></tr>';
+                }).join('');
+                html += '</tbody>';
+                $('#modal-message').html(html);
+
+                showModal('modal-message', '100%', '<%=l(:follow_tasks_save_fail)%>');
+
+                return;
+            }
+        }
+
+        showSuccess('<%=l(:save_success)%>');
+    }
+
+    function showException(detail) {
+        var $exceptionDialog = $("#dialog-exception");
+        var $detail = $exceptionDialog.find('.detail').hide();
+        $exceptionDialog.dialog({
+            resizable: false,
+            height:'auto',
+            modal: true,
+            closeOnEscape: false,
+            buttons: {
+                "<%=l(:label_details)%>": function() {
+                    $detail.html('<hr/>' + detail).fadeIn();
+                },
+                "<%=l(:button_close)%>": function() {
+                    $( this ).dialog( "close" );
+                }
+            }
+        });
+    }
+
+    function showSuccess(message) {
+       var $successDialog = $("#dialog-success");
+        $successDialog.find('.message').html(message);
+        $successDialog.dialog({
+            resizable: false,
+            height:'auto',
+            modal: true,
+            closeOnEscape: false,
+            buttons: {
+                "<%=l(:button_close)%>": function() {
+                    $( this ).dialog( "close" );
+                }
+            }
+        });
+    }
+
+    function showError(message) {
+        if (message == 'no_active_project') {
+            message = '<%=l(:no_active_project)%>';
+        } else if (message == 'please_cancel_cursor') {
+            message = '<%=l(:message_please_cancel_cursor) %>';
+        }
+
+        var $errorDialog = $("#dialog-error");
+        $errorDialog.find('.message').html(message);
+        $errorDialog.dialog({
+            resizable: false,
+            height:'auto',
+            modal: true,
+            closeOnEscape: false,
+            buttons: {
+                "<%=l(:button_close)%>": function() {
+                    $( this ).dialog( "close" );
+                }
+            }
+        });
+    }
+
+    function startDeleteIssue(id) {
+        var deletaction = '<%=Setting["plugin_microsoft_project_connector"]['on_task_delete']%>';
+        if (deletaction == 'askme') {
+            window.chrome.webview.postMessage(JSON.stringify(['confirmDelete', id + '', '<%=l(:message_delete_issues)%>', '<%=l(:confirm_delete)%>']));
+        } else if(deletaction == 'delete'){
+            deleteIssue(id);
+        }
+    }
+
+    function deleteIssue(id) {
+        return $.ajax({
+            url: '<%=microsoft_project_connector_delete_issue_path%>',
+            method: 'delete',
+            data: {
+                id: id
+            },
+            dataType: 'json'
+        }).then(function(json) {
+            json.error && showError(json.error);
+        });
+    }
+
+    
+    function showConfirm(message, applyCb, cancelCb) {
+        var $confirmDialog = $("#dialog-confirm");
+        window.aa = $confirmDialog
+        $confirmDialog.find('.message').html(message);
+        $confirmDialog.dialog({
+            resizable: false,
+            height:'auto',
+            modal: true,
+            closeOnEscape: false,
+            dialogClass:'dialog-confirm',
+            buttons: {
+                "<%=l(:button_apply)%>": function() {
+                    $( this ).dialog( "close" );
+
+                    applyCb && applyCb();
+                },
+                "<%=l(:button_cancel)%>": function() {
+                    $( this ).dialog( "close" );
+
+                    cancelCb && cancelCb();
+                }
+            }
+        });
+    }
+
+    function confirmOverWrite(isMerge) {
+        showConfirm("<%=l(:message_overwrite_tasks)%>", function () {
+            loadSetting(isMerge);
+        }, function () {
+            stopLoadIssues();
+        });
+    }
+
+    function runAsyncTask(id, delay) {
+        if (delay > 0) {
+            setTimeout(function () {
+                window.chrome.webview.postMessage(JSON.stringify(['runAsyncTask', id]));
+            }, delay);
+        } else {
+            window.chrome.webview.postMessage(JSON.stringify(['runAsyncTask', id]));
+        }
+    }
+</script>
+
+<style>
+    .filter td.field {
+        white-space: nowrap;
+    }
+
+
+    .filter td.values {
+        white-space: nowrap;
+    }
+
+    .filter td.values select {
+        width: 90%;
+    }
+
+    .dialog-confirm .ui-dialog-titlebar button{
+        display:none !important;
+    }
+</style>
+<% end %>
+
+
+<script>
+    $(document).ready(function() {
+        $('#project_combobox').on('change', function (e) {
+             var id = parseInt(e.currentTarget.value);
+             if (id > 0) {
+                 window.location = window.location.toString().split('&project_id=')[0] + '&project_id=' + id;
+             }
+        }).combobox();
+
+        var $selectableColumnsBody = $('#selectable_columns_body');
+        $selectableColumnsBody.sortable($.extend({
+            axis: 'y',
+            handle: ".sort-handle",
+            helper: function(event, ui){
+                ui.children('td').each(function(){
+                $(this).width($(this).width());
+                });
+                return ui;
+            }
+        }, {}));
+
+        $selectableColumnsBody.delegate('input[name=columns]', 'click', function(e) {
+            if (e.currentTarget.checked) {
+                var $tr = $(e.currentTarget).closest('tr');
+                var $currentTr = $tr.prev();
+                var moveIndex = 0;
+                while($currentTr.find('input[name=columns]:not(:checked)').length > 0) {
+                    $currentTr = $currentTr.prev();
+                    ++moveIndex;
+                }
+
+                if (moveIndex > 0) {
+                    $tr.animate({
+                        'opacity': moveIndex * $tr.height()
+                    }, {
+                        step: function (now, fx) {
+                            $(this).css({"transform": "translate3d(0px, -" + now + "px, 0px)"});
+                        },
+                        duration: 200,
+                        easing: 'linear',
+                        queue: false,
+                        complete: function () {
+                            $tr.css('opacity', '1').css('transform', 'none');
+                            $currentTr.after($tr);
+                        }
+                    });
+                }
+            } else {
+                var $tr = $(e.currentTarget).closest('tr');
+                var $currentTr = $tr.next();
+                var moveIndex = 0;
+                while($currentTr.find('input[name=columns]:checked').length > 0) {
+                    $currentTr = $currentTr.next();
+                    ++moveIndex;
+                }
+
+                if (moveIndex > 0) {
+                    $tr.animate({
+                        'opacity': moveIndex * $tr.height()
+                    }, {
+                        step: function (now, fx) {
+                            $(this).css({"transform": "translate3d(0px, " + now + "px, 0px)"});
+                        },
+                        duration: 200,
+                        easing: 'linear',
+                        queue: false,
+                        complete: function () {
+                            $tr.css('opacity', '1').css('transform', 'none');
+                            $currentTr.before($tr);
+                        }
+                    });
+                }
+            }
+        });
+    });
+</script>
+
+<style>
+    .project_jump_box_wrap {
+        padding-left: 0;
+    }
+
+    table.error-table .td_line_no {
+        width: 2rem;
+        white-space: nowrap;
+    }
+
+    .msp_btn img {
+        display: none;
+    }
+
+    .msp_btn.loading img {
+        display: inline-block;
+    }
+
+    .add-filter {
+        width: 100%;
+        float: none;
+        text-align: left;
+    }
+
+    .add-filter h3,
+    #query_form_content h3 {
+        padding-left: 0.5rem;
+        display: inline-block;
+    }
+
+    .add-filter .select-div {
+        float: right;
+        padding-right: 0.5rem;
+    }
+
+    .filter-div {
+        position: relative;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0;
+        border: 1px solid #ccc;
+    }
+
+    .filter-div > .progress {
+        position: absolute;
+        opacity: 0.618;
+        background: #000;
+        pointer-events: none;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1;
+        width: 0;
+        transition: 100ms width;
+    }
+
+    #query_form_content {
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid #ccc
+    }
+
+    .filter-actions {
+        margin-top: 0.5rem;
+        border-top: 1px solid #ccc;
+        padding: 1rem 0.5rem 0.5rem 0.5rem;
+    }
+
+    #query_form_content table {
+        width: 100%;
+    }
+
+    .sort-handle {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        background: url(../images/reorder.png) no-repeat 0 50%;
+        cursor: move;
+    }
+</style>
+<% end %>
