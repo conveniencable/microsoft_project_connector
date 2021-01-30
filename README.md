@@ -21,7 +21,10 @@ Key features:
 
 From your Redmine plugins directory, clone this repository as `microsoft_project_connector`:
 
-    git clone https://github.com/conveniencable/microsoft_project_connector.git microsoft_project_connector
+    For Redmine Version >= 3.00:
+    git clone -b main https://github.com/conveniencable/microsoft_project_connector
+    For Redmine Version 2.x:
+    git clone -b Redmine2.x https://github.com/conveniencable/microsoft_project_connector
 
 Restart Redmine, and you should see the plugin show up in the Plugins page.
 
