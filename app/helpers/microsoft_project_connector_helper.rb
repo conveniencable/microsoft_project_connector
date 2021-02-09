@@ -642,4 +642,8 @@ module MicrosoftProjectConnectorHelper
       @project.trackers
     end
   end
+
+  def find_project_members(project)
+    project.members.map{|m| {:id => m.user_id, :name => m.name, :email => m.user.mail, :group => m.user.groups.empty? ? nil : m.user.groups[0].name}}
+  end
 end
