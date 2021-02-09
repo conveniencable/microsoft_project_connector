@@ -82,7 +82,7 @@ class MicrosoftProjectConnectorController < ApplicationController
     if params[:is_for_save]
       render :json => {
         :columns => available_redmine_columns.select{|c| c.present? },
-        :members => @project.members.map{|m| {:id => m.user_id, :name => m.name}},
+        :members => find_project_members(@project),
       }
 
       return
@@ -111,7 +111,7 @@ class MicrosoftProjectConnectorController < ApplicationController
 
     render :json => {
       :columns => columns.select{|c| c.present? },
-      :members => @project.members.map{|m| {:id => m.user_id, :name => m.name}}
+      :members => find_project_members(@project)
     }
 
   end
