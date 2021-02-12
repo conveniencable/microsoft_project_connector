@@ -10,6 +10,10 @@ Key features:
 5. It's smart: Default values is filled when a task is create, Only the changed tasks are saved.
 
 
+
+I think it's workable on all 2.x, 3.x and 4.x Redmine versions. Just I don't have so many Redmine installations to test.
+
+
 ## Screenshot
 
 !https://conveniencable.github.io/images/redmine_setting.jpg!
