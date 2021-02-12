@@ -12,6 +12,8 @@ en:
   redmine_column: 'Redmine Column'
   new_mapping: 'New Mapping'
   issue_not_exists: 'Issue#%{id} Does Not Exists Or Is Deleted'
+  issue_not_editable: 'Not Allow to Edit'
+  issue_not_addable: 'Not Allow to Add'
 
   members_name_repeat: 'There Are Duplication of Names: %{names}, Please Fix It before Retry'
   members_name_invalid: 'There Are Invalid Format of Names: %{names}, Please Fix It before Retry'

@@ -2,15 +2,12 @@ Redmine::Plugin.register :microsoft_project_connector do
   name 'Microsoft Project Connector'
   author 'Li Chan'
   description 'A Redmine Plugin to Work with MS Project'
-  version '1.0.2'
+  version '1.0.4'
   url 'https://github.com/conveniencable/microsoft_project_connector'
   author_url 'https://github.com/conveniencable'
 
-  permission :microsoft_project_connector_setting, { :microsoft_project_connector => [:setting] }, :public => true
-  permission :microsoft_project_connector_using, { :microsoft_project_connector => [:query] }, :public => true
-
   menu :admin_menu, :microsoft_project_connector, {:controller => 'settings', :action => 'plugin', :id => "microsoft_project_connector"}, :html => {:class => 'icon icon-ms-project'}, :caption => :microsoft_project_connector, :if => Proc.new { User.current.admin? || User.current.module_permissions.include?('microsoft_project_connector_setting') }
-                      
+
   settings :default => {
   }, :partial => 'settings/index'
 
