@@ -18,7 +18,7 @@
       <% unless @project.present? %>
             <option value="0"><%=l(:text_select_a_project)%></option>
       <% end %>
-      <% Project.project_tree(User.current.projects.each) do |project, level| %>
+      <% Project.project_tree(Project.visible.active.select{|p| User.current.allowed_to?(:view_issues, p)}) do |project, level| %>
           <option value="<%=project.id%>" <%=@project.present? && @project.id == project.id ? 'selected' : '' %>><%=level > 0 ? "#{'&nbsp;&nbsp;' * level}»".html_safe : ''%><%=project.name %></option>
       <% end %>
     </select>

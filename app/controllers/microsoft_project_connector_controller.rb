@@ -8,7 +8,7 @@ class MicrosoftProjectConnectorController < ApplicationController
 
   before_filter :find_optional_project, :only => [:index, :query, :settings, :save]
 
-  before_filter :require_login, :except => [:test, :login]
+  before_filter :require_login, :except => [:test]
   
   skip_before_filter :check_if_login_required, :only => [:test]
 
@@ -56,7 +56,7 @@ class MicrosoftProjectConnectorController < ApplicationController
 
       unless params[:query_id]
         query = MicrosoftProjectConnectorQuery.where(:name => 'default', :project_id => @project.id).first
-        if query
+        if query && query.visible?
           params[:query_id] = query.id
         end
       end
@@ -163,7 +163,10 @@ class MicrosoftProjectConnectorController < ApplicationController
     custom_field_cache = {}
     errors = []
     new_issues_data = []
-    
+
+    permission_add_issues = User.current.allowed_to?(:add_issues, @project)
+    permission_edit_issues = User.current.allowed_to?(:edit_issues, @project)
+
     if issues_hash.present? && !issues_hash.blank?
       guid_to_id = Hash.new
       depencencies = []
@@ -240,29 +243,37 @@ class MicrosoftProjectConnectorController < ApplicationController
           unless issue_obj
             errors << [line_no, l(:issue_not_exists, :id => id)]	
           else
-            issue_obj.init_journal(User.current)
+            unless permission_edit_issues
+              errors << [line_no, l(:issue_not_editable)]
+            else
+              issue_obj.init_journal(User.current)
+              issue_obj.project_id = @project.id
+              issue_obj.safe_attributes = issue_data
+
+              if issue_obj.save
+                new_issues_data.append :updated_on => format_time(issue_obj.updated_on), :last_updated_by => nil, :guid => guid
+              else
+                errors << [line_no, issue_obj.errors.full_messages.join('; ')]
+              end
+
+              guid_to_id[guid] = issue_obj.id
+            end
+          end
+        else
+          unless permission_add_issues
+            errors << [line_no, l(:issue_not_addable)]
+          else
+            issue_obj = Issue.new
+            issue_obj.author = User.current
             issue_obj.project_id = @project.id
             issue_obj.safe_attributes = issue_data
-
             if issue_obj.save
-              new_issues_data.append :updated_on => format_time(issue_obj.updated_on), :last_updated_by => nil, :guid => guid
+              issue_obj[:id] = issue_obj.id
+              new_issues_data.append :id => issue_obj.id, :created_on => format_time(issue_obj.created_on), :updated_on => format_time(issue_obj.updated_on), :author => issue_obj.author.name, :last_updated_by => issue_obj.author.name, :guid => guid
+              guid_to_id[guid] = issue_obj.id
             else
               errors << [line_no, issue_obj.errors.full_messages.join('; ')]
             end
-            
-            guid_to_id[guid] = issue_obj.id
-          end
-        else
-          issue_obj = Issue.new
-          issue_obj.author = User.current
-          issue_obj.project_id = @project.id
-          issue_obj.safe_attributes = issue_data
-          if issue_obj.save
-            issue_obj[:id] = issue_obj.id
-            new_issues_data.append :id => issue_obj.id, :created_on => format_time(issue_obj.created_on), :updated_on => format_time(issue_obj.updated_on), :author => issue_obj.author.name, :last_updated_by => issue_obj.author.name, :guid => guid
-            guid_to_id[guid] = issue_obj.id 
-          else
-            errors << [line_no, issue_obj.errors.full_messages.join('; ')]
           end
         end
       end
@@ -351,9 +362,11 @@ class MicrosoftProjectConnectorController < ApplicationController
 
   def find_optional_project
     @project = Project.where('id = ? or identifier=?', params[:project_id], params[:project_id]).first unless params[:project_id].blank?
-    @project = Project.find(session['mspc_project_id']) unless @project || session['mspc_project_id'].blank?
-    #allowed = User.current.allowed_to?({:controller => params[:controller], :action => params[:action]}, @project, :global => true)
-    #allowed ? true : deny_access
+    @project = Project.where('id = ? or identifier=?', session['mspc_project_id'], session['mspc_project_id']).first unless @project || session['mspc_project_id'].blank?
+
+    unless User.current.allowed_to?(:view_issues, @project)
+      @project = nil
+    end
   rescue ActiveRecord::RecordNotFound
     render_404
   end

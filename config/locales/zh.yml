@@ -10,6 +10,8 @@ zh:
   redmine_column: 'Redmine列'
   new_mapping: '新建映射'
   issue_not_exists: '问题#%{id}不存在或已删除'
+  issue_not_editable: '无编辑权限'
+  issue_not_addable: '无新增权限'
 
   members_name_repeat: '以下用户重名: %{names}，请修正后重试'
   members_name_invalid: '以下用户名格式有问题: %{names}，请修正后重试'
