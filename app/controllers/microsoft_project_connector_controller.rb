@@ -163,6 +163,7 @@ class MicrosoftProjectConnectorController < ApplicationController
     custom_field_cache = {}
     errors = []
     new_issues_data = []
+    partial_fail_guids = []
 
     permission_add_issues = User.current.allowed_to?(:add_issues, @project)
     permission_edit_issues = User.current.allowed_to?(:edit_issues, @project)
@@ -235,6 +236,8 @@ class MicrosoftProjectConnectorController < ApplicationController
           else
             issue_data['parent_issue_id'] = parent_guid && guid_to_id[parent_guid] ? guid_to_id[parent_guid] : nil
           end
+
+          partial_fail_guids << guid if parent_guid && !guid_to_id[parent_guid]
         end
 
         if id > 0
@@ -247,7 +250,6 @@ class MicrosoftProjectConnectorController < ApplicationController
               errors << [line_no, l(:issue_not_editable)]
             else
               issue_obj.init_journal(User.current)
-              issue_obj.project_id = @project.id
               issue_obj.safe_attributes = issue_data
 
               if issue_obj.save
@@ -280,16 +282,15 @@ class MicrosoftProjectConnectorController < ApplicationController
 
       exclude_removing_dependencies.each do |removing_dependency|
         to_id = removing_dependency[:to_id]
-        unless to_id > 0
-          to_id = guid_to_id[removing_dependency[:to_guid]]
-        end
 
         if to_id && to_id > 0
           from_ids = removing_dependency[:from_ids]
-          removing_dependency[:from_guids].each do |guid|
-            guid_id = guid_to_id[guid]
+          removing_dependency[:from_guids].each do |temp_guid|
+            guid_id = guid_to_id[temp_guid]
             if guid_id && guid_id > 0
               from_ids.append guid_id
+            else
+              partial_fail_guids << removing_dependency[:to_guid] unless partial_fail_guids.include?(removing_dependency[:to_guid])
             end
           end
 
@@ -310,6 +311,8 @@ class MicrosoftProjectConnectorController < ApplicationController
           to_id = guid_to_id[dependency[:to_guid]]
         end
 
+        partial_fail_guids << dependency[:to_guid] if to_id && to_id > 0 && !from_id && !partial_fail_guids.include?(dependency[:to_guid])
+
         if from_id && from_id > 0 && to_id && to_id > 0
           result = save_relation(from_id, to_id, dependency[:type], (dependency[:lag].to_i / 480.0).round)
           if result && result.errors && !result.errors.full_messages.empty?
@@ -329,6 +332,7 @@ class MicrosoftProjectConnectorController < ApplicationController
 
     render :json => {
       :new_issues_data => new_issues_data,
+      :partial_fail_guids => partial_fail_guids,
       :errors => errors.sort {|a, b| a[0].to_i <=> b[0].to_i}
     }
   end
