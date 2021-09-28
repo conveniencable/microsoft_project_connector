@@ -3,6 +3,8 @@ require 'json'
 class MicrosoftProjectConnectorController < ApplicationController
   helper :microsoft_project_connector
   include MicrosoftProjectConnectorHelper
+  helper :sort
+  include SortHelper
   helper :queries
   include QueriesHelper
 
@@ -119,10 +121,23 @@ class MicrosoftProjectConnectorController < ApplicationController
   def query
     retrieve_msp_query
 
+    if Redmine::VERSION::MAJOR < 4
+      params[:sort] = @query.sort_criteria if @query.sort_criteria.present?
+      sort_init(@query.sort_criteria.empty? ? [['id', 'desc']] : @query.sort_criteria)
+      sort_update(@query.sortable_columns)
+      @query.sort_criteria = sort_criteria.to_a
+    end
+
     if @query.valid?
       @offset, @limit = api_offset_and_limit
       @issue_count = @query.issue_count
-      @issues = @query.issues(:offset => @offset, :limit => @limit)
+      
+      query_params = {:offset => @offset, :limit => @limit}
+      if Redmine::VERSION::MAJOR < 4
+        query_params[:order] = sort_clause
+      end
+
+      @issues = @query.issues(query_params)
 
       relations = IssueRelation.where(:issue_to_id => @issues.map(&:id)).where(:relation_type => [IssueRelation::TYPE_FINISH_FINISH, IssueRelation::TYPE_FINISH_START, IssueRelation::TYPE_START_START, IssueRelation::TYPE_START_FINISH])
 

@@ -625,6 +625,12 @@ module MicrosoftProjectConnectorHelper
       @query ||= klass.new(:name => "_", :filters => session[session_key][:filters], :group_by => session[session_key][:group_by], :column_names => session[session_key][:column_names], :sort_criteria => session[session_key][:sort])
       @query.project = @project
     end
+
+    if Redmine::VERSION::MAJOR < 4
+      sort_params = params[:sort] || params[:sort_criteria]
+      @query.sort_criteria_fixed = sort_params if sort_params
+    end
+    
     if params[:sort].present?
       if use_session
         session[session_key] ||= {}
