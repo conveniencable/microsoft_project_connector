@@ -603,7 +603,7 @@ module MicrosoftProjectConnectorHelper
     if params[:query_id].present?
       cond = "project_id IS NULL"
       cond << " OR project_id = #{@project.id}" if @project
-      @query = IssueQuery.where(cond).find(params[:query_id])
+      @query = klass.where(cond).find(params[:query_id])
 
       raise ::Unauthorized unless @query.visible?
       @query.project = @project
@@ -620,8 +620,13 @@ module MicrosoftProjectConnectorHelper
       @query ||= klass.new(:name => "_", :filters => session[session_key][:filters], :group_by => session[session_key][:group_by], :column_names => session[session_key][:column_names], :sort_criteria => session[session_key][:sort])
       @query.project = @project
     end
+    
+    if Redmine::VERSION::MAJOR < 4
+      sort_params = params[:sort] || params[:sort_criteria]
+      @query.sort_criteria_fixed = sort_params if sort_params
+    end
+
     if params[:sort].present?
-      @query.sort_criteria = ['id', 'asc']
       if use_session
         session[session_key] ||= {}
         session[session_key][:sort] = @query.sort_criteria.to_a
