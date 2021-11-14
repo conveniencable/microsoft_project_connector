@@ -372,8 +372,8 @@ class MicrosoftProjectConnectorController < ApplicationController
   end
 
   def find_optional_project
-    @project = Project.where('id = ? or identifier=?', params[:project_id], params[:project_id]).first unless params[:project_id].blank?
-    @project = Project.where('id = ? or identifier=?', session['mspc_project_id'], session['mspc_project_id']).first unless @project || session['mspc_project_id'].blank?
+    @project = Project.where('id = ? or identifier=?', params[:project_id].to_i, params[:project_id].to_s).first unless params[:project_id].blank?
+    @project = Project.where('id = ? or identifier=?', session['mspc_project_id'].to_i, session['mspc_project_id'].to_s).first unless @project || session['mspc_project_id'].blank?
 
     unless User.current.allowed_to?(:view_issues, @project)
       @project = nil
