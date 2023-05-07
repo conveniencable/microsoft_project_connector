@@ -318,7 +318,7 @@ $(document).ready(function(){
         showSuccess('<%=l(:save_success)%>');
     }
 
-      var currentSortCriteria = <%=@query.sort_criteria.to_json.html_safe%> || []
+    var currentSortCriteria = <%=@query.sort_criteria.to_json.html_safe%> || []
     var sortFieldOptions = <%= ([['', '']] + @query.available_columns.select(&:sortable?).collect{|column| [column.caption, column.name.to_s]}).to_json.html_safe  %>
     var sortDirectionOptions = [['<%=l(:label_ascending)%>', 'asc'], ['<%=l(:label_descending)%>', 'desc']]
 

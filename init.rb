@@ -2,7 +2,7 @@ Redmine::Plugin.register :microsoft_project_connector do
   name 'Microsoft Project Connector'
   author 'Li Chan'
   description 'A Redmine Plugin to Work with MS Project'
-  version '1.0.7'
+  version '1.0.8'
   url 'https://github.com/conveniencable/microsoft_project_connector'
   author_url 'https://github.com/conveniencable'
 
@@ -14,12 +14,12 @@ Redmine::Plugin.register :microsoft_project_connector do
 end
 
 
-if defined? ActionDispatch::Callbacks.to_prepare
-  ActionDispatch::Callbacks.to_prepare do
-    require 'microsoft_project_connector'
+if Rails.version > '6.0'
+  Rails.application.config.after_initialize do
+    require File.expand_path('../lib/microsoft_project_connector', __FILE__)
   end
 else
-  ActiveSupport::Reloader.to_prepare do
-    require 'microsoft_project_connector'
+  Rails.configuration.to_prepare do
+    require File.expand_path('../lib/microsoft_project_connector', __FILE__)
   end
 end
