@@ -349,10 +349,10 @@ module MicrosoftProjectConnectorHelper
   def available_mapped_columns(query)
     must_load_columns_val = must_load_columns
 
-    selected_names = (query.inline_columns & query.available_columns).collect { |column| column.name }
+    selected_names = query.column_names.collect {|name| name.to_sym}
     selected_names = selected_names.concat(must_load_columns_val)
 
-    result = query.available_columns.reject(&:frozen?).select { |column| ![:project, :parent, :attachments].include?(column.name) && mapping_column_names_mapping[column.name] }.collect { |column| ["#{column.caption} -> #{mapping_column_names_mapping[column.name]}", column.name, selected_names.include?(column.name), must_load_columns_val.include?(column.name)] }
+    result = query.available_columns.select { |column| ![:id, :project, :parent, :attachments].include?(column.name) && mapping_column_names_mapping[column.name] }.collect { |column| ["#{column.caption} -> #{mapping_column_names_mapping[column.name]}", column.name, selected_names.include?(column.name), must_load_columns_val.include?(column.name)] }
 
     selected = result.select { |c| c[2] }
     others = result.select { |c| !c[2] }
