@@ -349,7 +349,7 @@ module MicrosoftProjectConnectorHelper
   def available_mapped_columns(query)
     must_load_columns_val = must_load_columns
 
-    selected_names = query.column_names.collect {|name| name.to_sym}
+    selected_names = (query.column_names or []).collect {|name| name.to_sym}
     selected_names = selected_names.concat(must_load_columns_val)
 
     result = query.available_columns.select { |column| ![:id, :project, :parent, :attachments].include?(column.name) && mapping_column_names_mapping[column.name] }.collect { |column| ["#{column.caption} -> #{mapping_column_names_mapping[column.name]}", column.name, selected_names.include?(column.name), must_load_columns_val.include?(column.name)] }
@@ -617,7 +617,7 @@ module MicrosoftProjectConnectorHelper
       # Give it a name, required to be valid
       @query = klass.new(:name => "_", :project => @project)
       @query.build_from_params(params)
-      session[session_key] = {:project_id => @query.project_id, :filters => @query.filters, :group_by => @query.group_by, :column_names => @query.column_names, :sort => @query.sort_criteria.to_a} if use_session
+      session[session_key] = {:project_id => @query.project_id, :filters => @query.filters, :group_by => @query.group_by, :column_names => (@query.column_names or []), :sort => @query.sort_criteria.to_a} if use_session
     else
       # retrieve from session
       @query = nil

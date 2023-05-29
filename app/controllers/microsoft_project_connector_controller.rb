@@ -97,7 +97,7 @@ class MicrosoftProjectConnectorController < ApplicationController
     if query
       query.filters = @query.filters
       query.user_id = User.current.id
-      query.column_names = @query.column_names
+      query.column_names = @query.column_names or []
       query.sort_criteria = @query.sort_criteria
       query.group_by = @query.group_by
       query.options = @query.options
