@@ -181,7 +181,7 @@ class MicrosoftProjectConnectorController < ApplicationController
     partial_fail_guids = []
 
     permission_add_issues = User.current.allowed_to?(:add_issues, @project)
-    
+
     if issues_hash.present? && !issues_hash.blank?
       guid_to_id = Hash.new
       depencencies = []

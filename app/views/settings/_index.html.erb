@@ -29,6 +29,7 @@ on_task_delete_options = [
         <tr>
             <th><%=l(:redmine_column)%></th>
             <th><%=l(:project_column)%></th>
+            <th><%=l(:label_enumerations)%></th>
             <th>
                 
             </th>
@@ -100,6 +101,34 @@ on_task_delete_options = [
         }
 
         $(currentTarget).data('ov', value || '');
+
+        if (value) {
+            const mspField = MSPFieldS.find(function (f) {
+                return f.name === value;
+            });
+
+            if (mspField && mspField.type === 'enum') {
+                const redmineColumnName = $(currentTarget).closest('td').prev('td').find('input[name="settings[mpc_columns_mapping][][redmine]"]').val();
+                const redmineColumn = RedmineColumns.find(function(c) {return c.name === redmineColumnName});
+
+                if (redmineColumn) {
+                    const redmineItems = redmineColumn.possible_values || [];
+                    const mspItems = mspField.enum_items || []
+                    const itemLength = Math.max(mspItems.length, redmineItems.length);
+
+                    const enumMappingText = [];
+                    for (let i = 0; i < itemLength; i++) {
+                        enumMappingText.push((redmineItems[i] || 'NULL') + '->' + (mspItems[i] || 'null'));
+                    }
+
+                    const inlineStyle = redmineItems.length !== mspItems.length ? 'color: red' : '';
+
+                    $(currentTarget).closest('td').next('td').html('<div style="' + inlineStyle + '">' + enumMappingText.join("; ") + '</div>');
+                }
+            }
+        } else {
+            $(currentTarget).closest('td').next('td').html('');
+        }
     });
 
     function mspAddColumnMapping(columnName, mspFieldName) {
@@ -118,6 +147,7 @@ on_task_delete_options = [
             html += ColumnTitles[mspField.title_index] + '<input type="hidden" name="settings[mpc_columns_mapping][][msp]" value="' + mspFieldName + '" />';
         }
         html += '</td>';
+        html += '<td></td>';
         html += '<td class="operation">';
         html += '<span class="sort-handle"></span>';
         if(PRESERVE_FIELDS.indexOf(columnName) === -1) {
@@ -147,6 +177,12 @@ on_task_delete_options = [
         var format = redmineColumn.field_format || 'string';
         switch(format) {
             case 'string':
+                if (redmineColumn.cf_field_format == 'enumeration' || redmineColumn.cf_field_format == 'list') {
+                    acceptFormats = ['string', 'enum']
+                } else {
+                    acceptFormats = ['string']
+                }
+                break;
             case 'text':
             case 'link':
                 acceptFormats = ['string'];
@@ -212,6 +248,8 @@ on_task_delete_options = [
                 return ui;
             }
         }, {}));
+
+        $('select.select_msp_field').trigger('change');
     });
 
 </script>

@@ -265,7 +265,12 @@ module MicrosoftProjectConnectorHelper
     {:name => 'VAC', :title_index => 259, :type => 'double', :readonly => true, :is_custom =>false, :enum_items => nil},
     {:name => 'WBSPredecessors', :title_index => 260, :type => 'string', :readonly => true, :is_custom =>false, :enum_items => nil},
     {:name => 'WBSSuccessors', :title_index => 261, :type => 'string', :readonly => true, :is_custom =>false, :enum_items => nil},
-    {:name => 'ActualCost', :title_index => 262, :type => 'double', :readonly => true, :is_custom =>false, :enum_items => nil}
+    {:name => 'ActualCost', :title_index => 262, :type => 'double', :readonly => true, :is_custom =>false, :enum_items => nil},
+    {:name => 'Deadline', :title_index => 263, :type => 'DateTime', :readonly => false, :is_custom =>false, :enum_items => nil},
+    {:name => 'Manual', :title_index => 264, :type => 'bool', :readonly => false, :is_custom =>false, :enum_items => nil},
+    {:name => 'Type', :title_index => 265, :type => 'enum', :readonly => false, :is_custom =>false, :enum_items => ['Fixed Units', 'Fixed Duration', 'Fixed Work']},
+    {:name => 'ConstraintType', :title_index => 266, :type => 'enum', :readonly => false, :is_custom =>false, :enum_items => ['As Soon As Possible', 'As Late As Possible', 'Must Start On', 'Must Finish On', 'Start Not Earlier Than', 'Start Not Later Than', 'Finish Not Earlier Than', 'Finish Not Later Than']},
+    {:name => 'ConstraintDate', :title_index => 267, :type => 'DateTime', :readonly => false, :is_custom =>false, :enum_items => nil}
   ]
 
   def available_client_versions
@@ -380,7 +385,7 @@ module MicrosoftProjectConnectorHelper
         cfId = name[3..-1].to_i
         cf = custom_fields.find { |cf| cf.id == cfId }
         unless cf.nil?
-          result = { :id => cf.id, :name => "cf_#{cf.id}", :label => cf.name, :field_format => cf.field_format, :default_value => cf.default_value
+          result = { :id => cf.id, :name => "cf_#{cf.id}", :label => cf.name, :field_format => cf.field_format, :default_value => cf.default_value, :cf_field_format => cf.field_format
           }
           if cf.field_format == 'enumeration'
             result[:possible_values] = cf.enumerations.map { |v| v.name }
@@ -535,10 +540,33 @@ module MicrosoftProjectConnectorHelper
       case cf.field_format
       when 'enumeration'
         enum = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.enumerations).find { |v| v.name == value }
-        return enum.id if enum
+        if enum
+          return enum.id
+        else
+          index = value.to_i
+          if index > 0
+            enum = cache["cf_possible_values_#{field_id}".to_sym][index]
+            if enum
+              return enum.id
+            end
+          end
+        end
       when 'user', 'version'
         possible_values = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.possible_values_options(@project)).find { |v| v[0] == value }
         return possible_values[1] if possible_values
+      when 'list'
+        pv = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.possible_values).find { |v| v == value }
+        if pv
+          return pv
+        else
+          index = value.to_i
+          if index > 0
+            pv = cache["cf_possible_values_#{field_id}".to_sym][index]
+            if pv
+              return pv
+            end
+          end
+        end
       end
     end
 
