@@ -149,6 +149,9 @@ $(document).ready(function(){
                 });
 
                 if (values.length > 0) {
+                    if (values.length == 1 && $.isArray(values[0])) {
+                        values = values[0];
+                    }
                     v[fieldName] = values;
                 }
             }

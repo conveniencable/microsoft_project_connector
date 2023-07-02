@@ -355,12 +355,14 @@ module MicrosoftProjectConnectorHelper
     must_load_columns_val = must_load_columns
 
     selected_names = (query.column_names or []).collect {|name| name.to_sym}
-    selected_names = selected_names.concat(must_load_columns_val)
+    # selected_names = selected_names.concat(must_load_columns_val)
 
     result = query.available_columns.select { |column| ![:id, :project, :parent, :attachments].include?(column.name) && mapping_column_names_mapping[column.name] }.collect { |column| ["#{column.caption} -> #{mapping_column_names_mapping[column.name]}", column.name, selected_names.include?(column.name), must_load_columns_val.include?(column.name)] }
 
-    selected = result.select { |c| c[2] }
-    others = result.select { |c| !c[2] }
+    selected = result.select { |c| c[2] || c[3] }
+    others = result.select { |c| !c[2] && !c[3] }
+
+    selected.sort_by!{|c| selected_names.index(c[1])}
 
     selected.concat(others)
   end
