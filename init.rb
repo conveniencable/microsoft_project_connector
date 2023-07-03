@@ -2,7 +2,7 @@ Redmine::Plugin.register :microsoft_project_connector do
   name 'Microsoft Project Connector'
   author 'Li Chan'
   description 'A Redmine Plugin to Work with MS Project'
-  version '1.0.12'
+  version '1.0.13'
   url 'https://github.com/conveniencable/microsoft_project_connector'
   author_url 'https://github.com/conveniencable'
 
