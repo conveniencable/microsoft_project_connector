@@ -245,13 +245,15 @@ class MicrosoftProjectConnectorController < ApplicationController
             issue_data['parent_issue_id'] = parent_id
           end
         else
-          if @@usedSym
-            issue_data[:parent_issue_id] = parent_guid && guid_to_id[parent_guid] ? guid_to_id[parent_guid] : nil
-          else
-            issue_data['parent_issue_id'] = parent_guid && guid_to_id[parent_guid] ? guid_to_id[parent_guid] : nil
-          end
+          if parent_guid
+            if @@usedSym
+              issue_data[:parent_issue_id] = guid_to_id[parent_guid] ? guid_to_id[parent_guid] : nil
+            else
+              issue_data['parent_issue_id'] = guid_to_id[parent_guid] ? guid_to_id[parent_guid] : nil
+            end
 
-          partial_fail_guids << guid if parent_guid && !guid_to_id[parent_guid]
+            partial_fail_guids << guid if !guid_to_id[parent_guid]
+          end
         end
 
         if id > 0
