@@ -300,22 +300,19 @@ $(document).ready(function(){
         $('#btn_save').removeClass('loading');
     }
 
-    function showSaveMessage(errorsStr) {
-        if (errorsStr) {
-            var errors = JSON.parse(errorsStr)
-            if (errors && errors.length > 0) {
-                var html = '<table class="error-table"><thead><tr><th class="td_line_no"><%=l(:title_line_no)%></th><th><%=l(:title_error)%></th></tr></thead>';
-                html += '<tbody>';
-                html += errors.map(function(error) {
-                    return '<tr><td class="td_line_no">' + error[0] + '</td><td>' + error[1] + '</td></tr>';
-                }).join('');
-                html += '</tbody>';
-                $('#modal-message').html(html);
+    function showSaveMessage(errors) {
+        if (errors && errors.length > 0) {
+            var html = '<table class="error-table"><thead><tr><th class="td_line_no"><%=l(:title_line_no)%></th><th><%=l(:title_error)%></th></tr></thead>';
+            html += '<tbody>';
+            html += errors.map(function(error) {
+                return '<tr><td class="td_line_no">' + error[0] + '</td><td>' + error[1] + '</td></tr>';
+            }).join('');
+            html += '</tbody>';
+            $('#modal-message').html(html);
 
-                showModal('modal-message', '100%', '<%=l(:follow_tasks_save_fail)%>');
+            showModal('modal-message', '100%', '<%=l(:follow_tasks_save_fail)%>');
 
-                return;
-            }
+            return;
         }
 
         showSuccess('<%=l(:save_success)%>');

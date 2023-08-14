@@ -147,7 +147,7 @@ class MicrosoftProjectConnectorController < ApplicationController
           issue_data[column.name] = csv_content(column, issue)
         end
 
-        issue_relations = relations.select{|relation| relation.issue_to_id == issue.id}.map{|relation| "#{relation_short_type_str(relation)}@#{relation.delay || 0}##{relation.issue_from_id}"}
+        issue_relations = relations.select{|relation| relation.issue_to_id == issue.id}.map{|relation| "#{relation_short_type_str(relation)}@#{(relation.delay || 0)*480}##{relation.issue_from_id}"}
 
         issue_data['relations'] = issue_relations.join(',') unless issue_relations.blank?
 

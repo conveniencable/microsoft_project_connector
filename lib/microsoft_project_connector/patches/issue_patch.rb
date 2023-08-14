@@ -84,6 +84,6 @@ module MicrosoftProjectConnector
   end
 end
   
-  unless Issue.included_modules.include?(MicrosoftProjectConnector::Patches::IssuePatch)
-      Issue.include(MicrosoftProjectConnector::Patches::IssuePatch)
-  end
+unless Issue.included_modules.include?(MicrosoftProjectConnector::Patches::IssuePatch)
+    Issue.include(MicrosoftProjectConnector::Patches::IssuePatch)
+end
