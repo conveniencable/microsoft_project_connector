@@ -681,4 +681,31 @@ module MicrosoftProjectConnectorHelper
   def find_project_members(project)
     project.members.map{|m| {:id => m.user_id, :name => m.name, :email => m.user.mail, :group => m.user.groups.empty? ? nil : m.user.groups[0].name}}
   end
+
+  def format_issue_value(column, item)
+    value = column.value_object(item)
+    if value.is_a?(Array)
+      value.collect {|v| csv_value(column, item, v)}.compact.join(', ')
+    else
+      value_class_name = value.class.name
+      if value_class_name == 'Float'
+        return sprintf("%.2f", value)
+      elsif value_class_name == 'Date'
+        return value
+      elsif value_class_name == 'CustomValue' or value_class_name == 'CustomFieldValue'
+        if value.custom_field
+          if value.custom_field.field_format == 'date'
+            custom_value = value.custom_field.format.formatted_custom_value(self, value, false)
+            return custom_value
+          elsif value.custom_field.field_format == 'float'
+            custom_value = value.custom_field.format.formatted_custom_value(self, value, false)
+            return sprintf("%.2f", custom_value)
+          end
+        end
+      end
+
+      csv_value(column, item, value)
+    end
+  end
+
 end

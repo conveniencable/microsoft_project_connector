@@ -144,7 +144,7 @@ class MicrosoftProjectConnectorController < ApplicationController
       issues_data = @issues.map do |issue|
         issue_data = {:id => issue.id, :parent_id => issue.parent_id, :updated_on => issue.updated_on}
         @query.columns.each do |column|
-          issue_data[column.name] = csv_content(column, issue)
+          issue_data[column.name] = format_issue_value(column, issue)
         end
 
         issue_relations = relations.select{|relation| relation.issue_to_id == issue.id}.map{|relation| "#{relation_short_type_str(relation)}@#{(relation.delay || 0)*480}##{relation.issue_from_id}"}
