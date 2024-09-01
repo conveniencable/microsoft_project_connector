@@ -1,6 +1,8 @@
 # Microsoft Project Connector
 
-A Redmine Plugin to Work with MS Project Plugin [Redmine Connector](https://conveniencable.com/download). It's not a XML/MPP import/export tools. It's more convenient and powerful than any import/export style tools. It make redmine as a data center for MS Project.
+A Redmine Plugin to Work with [MS Project Plugin Redmine Connector](https://github.com/conveniencable/RedmineConnectorRelease/releases/latest). It's not a XML/MPP import/export tools. It's more convenient and powerful than any import/export style tools. It make redmine as a data center for MS Project.
+
+Demo redmine host: https://demo.redmine.conveniencable.com, available testing users: pm, pm2, coder, coder2, tester and tester2, and password "11111111" for all. 
 
 Key features:
 1. You can load/merge tasks from redmine and save tasks to redmine by one-click.
