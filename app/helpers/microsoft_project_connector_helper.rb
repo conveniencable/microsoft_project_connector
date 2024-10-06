@@ -371,6 +371,14 @@ module MicrosoftProjectConnectorHelper
     @@msp_fields
   end
 
+  def escape_msp_chars(val)
+    if val
+      return val.gsub(/,/, '，').strip
+    else
+      return val
+    end
+  end
+
   def available_redmine_columns()
     query = IssueQuery.new
     columns = query.available_columns.reject(&:frozen?).select { |column| ![:project, :parent, :attachments].include? column.name }.collect { |column| [column.caption, column.name, column] }
@@ -390,13 +398,13 @@ module MicrosoftProjectConnectorHelper
           result = { :id => cf.id, :name => "cf_#{cf.id}", :label => cf.name, :field_format => cf.field_format, :default_value => cf.default_value, :cf_field_format => cf.field_format
           }
           if cf.field_format == 'enumeration'
-            result[:possible_values] = cf.enumerations.map { |v| v.name }
+            result[:possible_values] = cf.enumerations.map { |v| escape_msp_chars(v.name) }
             result[:field_format] = 'string'
           elsif cf.field_format == 'user' || cf.field_format == 'version'
-            result[:possible_values] = cf.possible_values_options(@project).map { |v| v[0] } if @project
+            result[:possible_values] = cf.possible_values_options(@project).map { |v| escape_msp_chars(v[0]) } if @project
             result[:field_format] = 'string'
           elsif cf.possible_values && !cf.possible_values.blank?
-            result[:possible_values] = cf.possible_values
+            result[:possible_values] = cf.possible_values.map {|v| escape_msp_chars(v)}
             result[:field_format] = 'string'
           end
         else
@@ -460,6 +468,10 @@ module MicrosoftProjectConnectorHelper
         else
         end
 
+        if possible_values
+          possible_values = possible_values.map {|v| escape_msp_chars(v)}
+        end
+
         { :id => nil, :name => name, :label => label, :possible_values => possible_values, :field_format => possible_values ? 'string' : @@field_formats[name.to_sym], :read_only => @@readonly_fields.include?(c), :default_value => default_value }
       end
     end
@@ -492,34 +504,34 @@ module MicrosoftProjectConnectorHelper
 
     case field_name
     when 'assigned_to'
-      user = (@_project_members ||= @project.members).find { |u| u.name == value }
+      user = (@_project_members ||= @project.members.map {|u| [escape_msp_chars(u.name), u.user_id]}).find { |u| u[0] == value }
       set_field_name = 'assigned_to_id'
-      set_value = user ? user.user_id : nil
+      set_value = user ? user[1] : nil
     when 'tracker'
-      tracker = (@_project_trackers ||= @project.trackers).find { |t| t.name == value }
+      tracker = (@_project_trackers ||= @project.trackers.map {|t| [escape_msp_chars(t.name), t.id]}).find { |t| t[0] == value }
 
       set_field_name = 'tracker_id'
-      set_value = tracker ? tracker.id : nil
+      set_value = tracker ? tracker[1] : nil
     when 'fixed_version'
-      version = (@_all_fixed_versions ||= @project.shared_versions).find { |v| v.name == value }
+      version = (@_all_fixed_versions ||= @project.shared_versions.map {|v| [escape_msp_chars(v.name), v.id]}).find { |v| v[0] == value }
 
       set_field_name = 'fixed_version_id'
-      set_value = version ? version.id : nil
+      set_value = version ? version[1] : nil
     when 'status'
-      status = (@_all_issue_status ||= IssueStatus.all()).find { |v| v.name == value }
+      status = (@_all_issue_status ||= IssueStatus.all().map {|s| [escape_msp_chars(s.name), s.id]}).find { |v| v[0] == value }
 
       set_field_name = 'status_id'
-      set_value = status ? status.id : nil
+      set_value = status ? status[1] : nil
     when 'priority'
-      priority = (@_active_priorities ||= IssuePriority.active).find { |v| v.name == value }
+      priority = (@_active_priorities ||= IssuePriority.active.map {|s| [escape_msp_chars(s.name), s.id]}).find { |v| v[0] == value }
 
       set_field_name = 'priority_id'
-      set_value = priority ? priority.id : nil
+      set_value = priority ? priority[1] : nil
     when 'category'
-      category = (@_project_categories ||= @project.issue_categories).find { |v| v.name == value }
+      category = (@_project_categories ||= @project.issue_categories.map {|c| [escape_msp_chars(c.name), c.id]}).find { |v| v[0] == value }
 
       set_field_name = 'category_id'
-      set_value = category ? category.id : nil
+      set_value = category ? category[1] : nil
     else
       unless ['line_no', 'guid', 'parent_guid'].include? field_name
         set_field_name = field_name
@@ -541,31 +553,31 @@ module MicrosoftProjectConnectorHelper
     unless cf.nil?
       case cf.field_format
       when 'enumeration'
-        enum = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.enumerations).find { |v| v.name == value }
+        enum = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.enumerations.map {|e| [escape_msp_chars(e.name), e.id]}).find { |v| v[0] == value }
         if enum
-          return enum.id
+          return enum[1]
         else
           index = value.to_i
           if index > 0
             enum = cache["cf_possible_values_#{field_id}".to_sym][index]
             if enum
-              return enum.id
+              return enum[1]
             end
           end
         end
       when 'user', 'version'
-        possible_values = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.possible_values_options(@project)).find { |v| v[0] == value }
+        possible_values = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.possible_values_options(@project).map {|pv| [escape_msp_chars(pv[0]), pv[1]]}).find { |v| v[0] == value }
         return possible_values[1] if possible_values
       when 'list'
-        pv = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.possible_values).find { |v| v == value }
+        pv = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.possible_values.map {|pv| [escape_msp_chars(pv), pv]}).find { |v| v[0] == value }
         if pv
-          return pv
+          return pv[1]
         else
           index = value.to_i
           if index > 0
             pv = cache["cf_possible_values_#{field_id}".to_sym][index]
             if pv
-              return pv
+              return pv[1]
             end
           end
         end
@@ -684,6 +696,9 @@ module MicrosoftProjectConnectorHelper
 
   def format_issue_value(column, item)
     value = column.value_object(item)
+    
+    return nil if value.nil?
+
     if value.is_a?(Array)
       value.collect {|v| csv_value(column, item, v)}.compact.join(', ')
     else
@@ -699,8 +714,17 @@ module MicrosoftProjectConnectorHelper
             return custom_value
           elsif value.custom_field.field_format == 'float'
             custom_value = value.custom_field.format.formatted_custom_value(self, value, false)
+            return nil if custom_value.nil?
             return sprintf("%.2f", custom_value)
+          else
+             if ['enumeration', 'user', 'version', 'list'].include?(value.custom_field.field_format)
+              return escape_msp_chars(csv_value(column, item, value))
+             end
           end
+        end
+      else
+        if ['assigned_to', 'tracker', 'fixed_version', 'status', 'priority',' category'].include?(column.name.to_s)
+          return escape_msp_chars(csv_value(column, item, value))
         end
       end
 
