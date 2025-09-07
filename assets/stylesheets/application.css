@@ -1,5 +1,7 @@
 .icon-ms-project {
     color: red;
+    background-image: url(../images/ms_project.png);
+    background-repeat: no-repeat;
 }
 
 .custom-combobox {

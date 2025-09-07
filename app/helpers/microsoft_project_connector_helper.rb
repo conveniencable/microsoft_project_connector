@@ -395,7 +395,9 @@ module MicrosoftProjectConnectorHelper
         cfId = name[3..-1].to_i
         cf = custom_fields.find { |cf| cf.id == cfId }
         unless cf.nil?
-          result = { :id => cf.id, :name => "cf_#{cf.id}", :label => cf.name, :field_format => cf.field_format, :default_value => cf.default_value, :cf_field_format => cf.field_format
+          result = { 
+            :id => cf.id, :name => "cf_#{cf.id}", :label => cf.name, :field_format => cf.field_format, 
+            :default_value => cf.default_value, :cf_field_format => cf.field_format, :multiple => cf.multiple
           }
           if cf.field_format == 'enumeration'
             result[:possible_values] = cf.enumerations.map { |v| escape_msp_chars(v.name) }
@@ -472,7 +474,10 @@ module MicrosoftProjectConnectorHelper
           possible_values = possible_values.map {|v| escape_msp_chars(v)}
         end
 
-        { :id => nil, :name => name, :label => label, :possible_values => possible_values, :field_format => possible_values ? 'string' : @@field_formats[name.to_sym], :read_only => @@readonly_fields.include?(c), :default_value => default_value }
+        {
+          :id => nil, :name => name, :label => label, :possible_values => possible_values, :field_format => possible_values ? 'string' : @@field_formats[name.to_sym], 
+          :read_only => @@readonly_fields.include?(c), :default_value => default_value, :multiple => false
+        }
       end
     end
 
@@ -504,9 +509,17 @@ module MicrosoftProjectConnectorHelper
 
     case field_name
     when 'assigned_to'
-      user = (@_project_members ||= @project.members.map {|u| [escape_msp_chars(u.name), u.user_id]}).find { |u| u[0] == value }
+      value_arr = value.split(',')
+      users = (@_project_members ||= @project.members.map {|u| [escape_msp_chars(u.name), u.user_id]}).select { |u| value_arr.include?(u[0]) }
       set_field_name = 'assigned_to_id'
-      set_value = user ? user[1] : nil
+      if users.length > 1
+        set_value = users.map {|v| v[1]}
+      elsif users.length == 1
+        set_value = users[0][1]
+      else
+        set_value = nil
+      end
+        
     when 'tracker'
       tracker = (@_project_trackers ||= @project.trackers.map {|t| [escape_msp_chars(t.name), t.id]}).find { |t| t[0] == value }
 
@@ -566,8 +579,16 @@ module MicrosoftProjectConnectorHelper
           end
         end
       when 'user', 'version'
-        possible_values = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.possible_values_options(@project).map {|pv| [escape_msp_chars(pv[0]), pv[1]]}).find { |v| v[0] == value }
-        return possible_values[1] if possible_values
+        available_values = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.possible_values_options(@project).map {|pv| [escape_msp_chars(pv[0]), pv[1]]})
+        value_arr = value.split(',')
+        possible_values = available_values.select { |v| value_arr.include?(v[0]) }
+        if possible_values.length > 1
+          return possible_values.map {|v| v[1]}
+        elsif possible_values.length == 1
+          return possible_values[0][1]
+        else
+          return nil
+        end
       when 'list'
         pv = (cache["cf_possible_values_#{field_id}".to_sym] ||= cf.possible_values.map {|pv| [escape_msp_chars(pv), pv]}).find { |v| v[0] == value }
         if pv

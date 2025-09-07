@@ -54,7 +54,7 @@ on_task_delete_options = [
     var RedmineColumns = <%= redmine_columns.to_json.html_safe %>;
     var ColumnTitles = '<%= l(:task_column_titles) %>'.split('||');
     var NotInlineColumnNames = '<%=not_inline_column_names.to_json.html_safe %>';
-    var PRESERVE_FIELDS = ['id', 'assigned_to'];
+    var PRESERVE_FIELDS = ['id'];
 
     $.each(<%=MicrosoftProjectConnectorController.helpers.msc_columns_mapping_settings.to_json.html_safe %>, function(i, o) {
         var redmineColumn = RedmineColumns.find(function(rc) {
